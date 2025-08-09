@@ -1,11 +1,19 @@
 {
-  "name": "test-kit",
-  "version": "0.1.0",
+  "name": "@suerg/test-kit",
+  "version": "0.1.1",
   "private": false,
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dbpiper/test-kit.git"
+  },
+  "homepage": "https://github.com/dbpiper/test-kit#readme",
+  "bugs": {
+    "url": "https://github.com/dbpiper/test-kit/issues"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,7 +31,11 @@
     "build": "unbuild",
     "prepack": "npm run build",
     "build:yalc": "npm run build && npx yalc publish",
-    "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\""
+    "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "release": "npm publish --access public",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
   },
   "peerDependencies": {
     "@reduxjs/toolkit": ">=1.9.0",
@@ -50,6 +62,10 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.0",
     "@reduxjs/toolkit": "^2.8.2",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",

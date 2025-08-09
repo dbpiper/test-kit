@@ -1,31 +1,33 @@
 import { type UserEvent } from "@testing-library/user-event";
-import { act } from "@testing-library/react";
+import { act as rtlAct } from "@testing-library/react";
 import { definePlugin } from "../helpers/definePlugin";
 
 export type FlowHelpers = {
-  act: (fn: (u: UserEvent) => Promise<void>) => void;
+  // Execute the interaction immediately and flush updates. Prefer awaiting it.
+  act: (fn: (u: UserEvent) => Promise<void>) => Promise<void>;
+  // Back-compat: no-op flush for older tests that still call run().
   run: () => Promise<void>;
 };
 
 export const flowPlugin = definePlugin<"flow", FlowHelpers>("flow", {
   key: Symbol("flow"),
   setup(ctx) {
-    const steps: ((u: UserEvent) => Promise<void>)[] = [];
     return {
-      act: (fn: (u: UserEvent) => Promise<void>) => {
-        steps.push(fn);
+      act: async (fn: (u: UserEvent) => Promise<void>) => {
+        // Wrap the interaction in React Testing Library's act
+        await rtlAct(async () => {
+          await fn(ctx.user);
+        });
+        // Give component libs (e.g., MUI ripples) a microtask to settle
+        await rtlAct(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
       },
       run: async () => {
-        for (const func of steps) {
-          // eslint-disable-next-line no-await-in-loop
-          await func(ctx.user);
-          // Flush pending effects/state updates that can be scheduled by
-          // component libraries (e.g., ripple effects) after user interactions.
-          // eslint-disable-next-line no-await-in-loop
-          await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 0));
-          });
-        }
+        // Backward compatibility: provide a small flush for older tests
+        await rtlAct(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
       },
     };
   },

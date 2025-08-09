@@ -178,6 +178,31 @@ await kit.api.expectCalledTimes("GET", "/users", 1);
 await kit.keyboard("{Tab}{Enter}");
 ```
 
+### Flushing async interactions
+
+`kit.flow.act` now executes the interaction immediately and flushes updates for you. Prefer `await kit.flow.act(...)` and then assert; no separate `run()` is needed. A no-op `run()` remains for back-compat.
+
+```ts
+import { screen, waitFor } from "@testing-library/react";
+
+// Click and flush pending updates (act + microtask handled internally)
+await kit.flow.act(async (user) => {
+  await user.click(
+    await screen.findByRole("gridcell", { name: /January 15, 2024/i })
+  );
+});
+
+// Now assert UI/router state
+await waitFor(() => {
+  expect(kit.router.getLocation().path).toContain("date=2024-01-15");
+});
+```
+
+Notes
+
+- `kit.flow.act` returns a Promise and should be awaited. It wraps the interaction in React Testing Library's `act()` and performs a microtask flush for libraries like MUI.
+- `kit.flow.run()` is kept as a harmless no-op (with a tiny flush) for older tests; new tests should not need it.
+
 ### Date control
 
 ```ts
