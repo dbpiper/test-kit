@@ -22,9 +22,9 @@ export function createKit(
               ...(rest as AnyPlugin[]),
           ] as AnyPlugin[]);
 
-    const explicitKeys = new Set(explicit.map((p) => p.key));
+    const explicitKeys = new Set(explicit.map((plugin) => plugin.key));
     const all: AnyPlugin[] = [
-        ...defaultPlugins.filter((p) => !explicitKeys.has(p.key)),
+        ...defaultPlugins.filter((plugin) => !explicitKeys.has(plugin.key)),
         ...explicit,
     ];
 

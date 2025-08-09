@@ -5,7 +5,7 @@ export type RouterEnvironment = {
 };
 
 declare global {
-    // eslint-disable-next-line no-var
+    // eslint-disable-next-line no-var, @typescript-eslint/naming-convention
     var __TEST_KIT_ROUTER_ENV__: RouterEnvironment | undefined;
 }
 

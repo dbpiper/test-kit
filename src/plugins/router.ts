@@ -52,10 +52,7 @@ export function routerPlugin(
                               'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.',
                           );
                       }
-                      return createNextRouterAdapter(
-                          nextRouter,
-                          opts.initialUrl,
-                      );
+                      return createNextRouterAdapter(nextRouter);
                   }
                   throw new Error(`Unsupported router type: ${opts.type}`);
               })()
@@ -69,8 +66,9 @@ export function routerPlugin(
                 to: RouteTo,
                 opts?: { replace?: boolean },
             ) => {
-                if (opts?.replace)
-                    {return adapter.replace(to) as Promise<boolean | void>;}
+                if (opts?.replace) {
+                    return adapter.replace(to) as Promise<boolean | void>;
+                }
                 return adapter.push(to) as Promise<boolean | void>;
             };
             return {
@@ -99,10 +97,7 @@ export type NextRouterLike = {
     query: Record<string, any>;
 };
 
-export function createNextRouterAdapter(
-    router: NextRouterLike,
-    initialUrl?: string,
-): RouterAdapter {
+export function createNextRouterAdapter(router: NextRouterLike): RouterAdapter {
     // Keep our own deterministic snapshot to avoid flakiness in mocks
     let currentPathname = router.pathname;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,13 +110,17 @@ export function createNextRouterAdapter(
             ? { pathname: to, query: {} as Record<string, unknown> }
             : { pathname: to.pathname, query: to.query ?? {} };
 
-    const serializeQuery = (q: Record<string, unknown>) => {
-        const entries = Object.entries(q);
-        if (entries.length === 0) {return '';}
+    const serializeQuery = (queryObject: Record<string, unknown>) => {
+        const entries = Object.entries(queryObject);
+        if (entries.length === 0) {
+            return '';
+        }
         const search = entries
             .map(
-                ([k, v]) =>
-                    `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`,
+                ([key, value]) =>
+                    `${encodeURIComponent(key)}=${encodeURIComponent(
+                        String(value),
+                    )}`,
             )
             .join('&');
         return `?${search}`;
@@ -176,13 +175,16 @@ export function createNextRouterAdapter(
                     const { pathname, query } = parse(to);
                     currentPathname = pathname;
                     currentQuery = query;
-                    // Do not mutate the live router. Let the underlying router manage its own fields.
                     await Promise.resolve();
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     return fn(to as any, ...rest);
                 };
-            if (originalPush) {live.push = wrapAndTrack(originalPush);}
-            if (originalReplace) {live.replace = wrapAndTrack(originalReplace);}
+            if (originalPush) {
+                live.push = wrapAndTrack(originalPush);
+            }
+            if (originalReplace) {
+                live.replace = wrapAndTrack(originalReplace);
+            }
         },
         push: async (to) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -198,15 +200,16 @@ export function createNextRouterAdapter(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return live.replace(to as any);
         },
-        getLocation: () => ({
+        getLocation: () => {
             // Always read from the configured live router
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            path: (resolveLiveRouter() as any).asPath ?? getPathWithQuery(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pathname: (resolveLiveRouter() as any).pathname ?? currentPathname,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            query: (resolveLiveRouter() as any).query ?? currentQuery,
-        }),
+            const live = resolveLiveRouter() as any;
+            return {
+                path: live.asPath ?? getPathWithQuery(),
+                pathname: live.pathname ?? currentPathname,
+                query: live.query ?? currentQuery,
+            };
+        },
     };
 }
 
@@ -248,19 +251,23 @@ export function createReactNavigationAdapter(
         },
         replace: (to) => {
             if (navigation.replace) {
-                if (typeof to === 'string') {return navigation.replace(to);}
+                if (typeof to === 'string') {
+                    return navigation.replace(to);
+                }
                 return navigation.replace(
                     to.pathname,
                     to.query as Record<string, unknown>,
                 );
             }
             // fallback: navigate
-            if (typeof to === 'string') {navigation.navigate(to);}
-            else
-                {navigation.navigate(
+            if (typeof to === 'string') {
+                navigation.navigate(to);
+            } else {
+                navigation.navigate(
                     to.pathname,
                     to.query as Record<string, unknown>,
-                );}
+                );
+            }
             return true;
         },
         getLocation: () => {

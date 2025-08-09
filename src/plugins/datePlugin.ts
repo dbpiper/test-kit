@@ -4,7 +4,8 @@ export type DateHelpers = Record<string, never>;
 
 // Freeze system time without switching to fake timers.
 // Implements a minimal version of sinon's setSystemTime:
-// - Overrides global Date constructor so `new Date()` and `Date()` return the fixed time when called without args
+// - Overrides global Date constructor so `new Date()` and `Date()` return the
+//   fixed time when called without args
 // - Overrides `Date.now()` to the fixed epoch
 // - Leaves timers (setTimeout, setInterval, etc.) as real timers
 export const datePlugin = (date: Date = new Date('2024-01-15T12:00:00.000Z')) =>
@@ -19,20 +20,25 @@ export const datePlugin = (date: Date = new Date('2024-01-15T12:00:00.000Z')) =>
             const FixedDate = new Proxy(originalDateRef, {
                 construct(target, args: unknown[]) {
                     return args.length === 0
-                        ? new originalDateRef(fixedTs)
+                        ? // eslint-disable-next-line new-cap
+                          new originalDateRef(fixedTs)
                         : new (originalDateRef as unknown as new (
-                              ...a: unknown[]
-                          ) => Date)(...(args as unknown[]));
+                              ...argsList: unknown[]
+                          ) => Date)(
+                              // eslint-disable-next-line new-cap
+                              ...args,
+                          );
                 },
                 apply(target, thisArg, args: unknown[]) {
                     // Date() called as function returns string representation of current time
                     return args.length === 0
-                        ? new originalDateRef(fixedTs).toString()
+                        ? // eslint-disable-next-line new-cap
+                          new originalDateRef(fixedTs).toString()
                         : (
                               originalDateRef as unknown as (
-                                  ...a: unknown[]
+                                  ...argsList: unknown[]
                               ) => string
-                          ).apply(thisArg, args as unknown[]);
+                          ).apply(thisArg, args);
                 },
                 get(target, prop, receiver) {
                     if (prop === 'now') {

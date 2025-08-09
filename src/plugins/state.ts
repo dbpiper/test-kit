@@ -6,9 +6,8 @@ import React, {
 } from 'react';
 import { Provider } from 'react-redux';
 
-import type { MinimalStore } from '../redux/config';
+import { getConfiguredRedux, type MinimalStore } from '../redux/config';
 import { definePlugin } from '../helpers/definePlugin';
-import { getConfiguredRedux } from '../redux/config';
 
 type DeepPartial<T> = T extends object
     ? { [K in keyof T]?: DeepPartial<T[K]> }
@@ -74,16 +73,29 @@ export function statePlugin<S>(options?: StatePluginOptions<S>) {
             ) => {
                 if (typeof pathOrPatch === 'string') {
                     const patchObj: Record<string, unknown> = {};
-                    (pathOrPatch as string)
+                    // Build nested object at path using reduce's return value
+                    const built: Record<string, unknown> = (
+                        pathOrPatch as string
+                    )
                         .split('.')
-                        .reduce((acc, key, idx, arr) => {
-                            if (idx === arr.length - 1) {
-                                acc[key] = val;
-                                return acc;
-                            }
-                            acc[key] = acc[key] ?? {};
-                            return acc[key] as Record<string, unknown>;
-                        }, patchObj);
+                        .reduce<Record<string, unknown>>(
+                            (acc, key, idx, arr) => {
+                                if (idx === arr.length - 1) {
+                                    acc[key] = val;
+                                    return acc;
+                                }
+                                const next = (acc[key] ?? {}) as Record<
+                                    string,
+                                    unknown
+                                >;
+                                acc[key] = next;
+                                return next;
+                            },
+                            patchObj,
+                        );
+                    // use built to satisfy linter and ensure structure is constructed
+                    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+                    built;
                     withPatch(patchObj as Partial<S>);
                 } else {
                     withPatch(pathOrPatch as Partial<S>);

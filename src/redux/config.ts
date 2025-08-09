@@ -18,7 +18,7 @@ export type ReduxEnvironment<S> = {
 };
 
 declare global {
-    // eslint-disable-next-line no-var
+    // eslint-disable-next-line @typescript-eslint/naming-convention, no-var
     var __TEST_KIT_REDUX_ENV__: ReduxEnvironment<unknown> | undefined;
 }
 
