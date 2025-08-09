@@ -1,21 +1,162 @@
 {
-  "root": true,
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint"],
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended",
-    "prettier"
-  ],
-  "env": {
-    "es2022": true,
-    "node": true,
-    "jest": true
-  },
-  "ignorePatterns": ["dist/**"],
-  "parserOptions": {
-    "ecmaVersion": 2022,
-    "sourceType": "module"
-  },
-  "rules": {}
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "plugins": [
+        "@typescript-eslint",
+        "import",
+        "react",
+        "react-hooks",
+        "promise",
+        "jsx-a11y",
+        "prettier"
+    ],
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/recommended",
+        "plugin:react/recommended",
+        "plugin:react-hooks/recommended",
+        "plugin:import/recommended",
+        "plugin:jsx-a11y/recommended",
+        "plugin:promise/recommended",
+        "prettier"
+    ],
+    "env": {
+        "es2022": true,
+        "node": true,
+        "jest": true
+    },
+    "ignorePatterns": ["dist/**"],
+    "parserOptions": {
+        "ecmaVersion": 2022,
+        "sourceType": "module",
+        "project": ["./tsconfig.json"]
+    },
+    "rules": {
+        "id-length": [
+            "error",
+            { "exceptions": ["i", "j"], "properties": "never" }
+        ],
+        "no-restricted-syntax": "off",
+        "react/require-default-props": "off",
+        "no-nested-ternary": "off",
+        "no-lonely-if": "off",
+        "react/function-component-definition": "off",
+        "no-unused-expressions": "off",
+        "@typescript-eslint/no-unused-expressions": "off",
+        "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+        "import/prefer-default-export": "off",
+        "no-use-before-define": "off",
+        "react/jsx-no-useless-fragment": "off",
+        "promise/always-return": "off",
+        "react/prop-types": "off",
+        "@next/next/no-img-element": "off",
+        "react/react-in-jsx-scope": "off",
+        "react/jsx-filename-extension": [
+            "warn",
+            { "extensions": [".jsx", ".tsx", ".js"] }
+        ],
+        "react/jsx-props-no-spreading": "off",
+        "arrow-body-style": ["error", "as-needed"],
+        "arrow-parens": ["error", "always"],
+        "comma-dangle": ["error", "always-multiline"],
+        "consistent-return": "error",
+        "eqeqeq": ["error", "always", { "null": "ignore" }],
+        "no-var": "error",
+        "object-curly-spacing": ["error", "always"],
+        "prefer-const": ["error", { "destructuring": "all" }],
+        "quotes": [
+            "error",
+            "single",
+            { "avoidEscape": true, "allowTemplateLiterals": false }
+        ],
+        "semi": ["error", "always"],
+        "curly": ["error", "all"],
+        "dot-notation": "error",
+        "no-plusplus": "off",
+        "no-param-reassign": [
+            "error",
+            {
+                "props": true,
+                "ignorePropertyModificationsFor": [
+                    "acc",
+                    "draft",
+                    "ref",
+                    "state"
+                ]
+            }
+        ],
+        "prefer-arrow-callback": ["error", { "allowNamedFunctions": false }],
+        "prefer-rest-params": "error",
+        "prefer-spread": "error",
+        "prefer-template": "error",
+        "radix": ["error", "always"],
+        "yoda": ["error", "never", { "onlyEquality": true }],
+        "no-underscore-dangle": ["error", { "allowAfterThis": false }],
+        "no-unneeded-ternary": "error",
+        "no-mixed-operators": "off",
+        "prefer-destructuring": [
+            "error",
+            { "array": true, "object": true },
+            { "enforceForRenamedProperties": false }
+        ],
+        "object-shorthand": ["error", "always"],
+        "array-callback-return": "error",
+        "new-cap": ["error", { "newIsCap": true, "capIsNew": false }],
+        "no-duplicate-imports": "error",
+        "import/no-duplicates": "error",
+        "comma-spacing": ["error", { "before": false, "after": true }],
+        "space-before-blocks": ["error", "always"],
+        "space-in-parens": ["error", "never"],
+        "spaced-comment": ["error", "always", { "markers": ["/"] }],
+        "react/jsx-indent": ["error", 2],
+        "react/jsx-indent-props": ["error", 2],
+        "react/jsx-boolean-value": ["error", "never"],
+        "react/self-closing-comp": "error",
+        "react/sort-comp": "error",
+        "camelcase": [
+            "error",
+            { "properties": "never", "ignoreDestructuring": false }
+        ],
+        "class-methods-use-this": ["error", { "exceptMethods": [] }],
+        "func-names": ["warn", "as-needed"],
+        "import/order": [
+            "error",
+            {
+                "groups": [
+                    "builtin",
+                    "external",
+                    "internal",
+                    ["parent", "sibling", "index"]
+                ],
+                "newlines-between": "always"
+            }
+        ],
+        "import/first": "error",
+        "import/newline-after-import": "error",
+        "import/extensions": ["error", "never", { "ignorePackages": true }],
+        "default-param-last": "error",
+        "max-len": [
+            "error",
+            {
+                "code": 100,
+                "tabWidth": 2,
+                "ignoreUrls": true,
+                "ignoreStrings": true,
+                "ignoreTemplateLiterals": true,
+                "ignoreComments": false
+            }
+        ],
+        "object-curly-newline": [
+            "error",
+            { "multiline": true, "consistent": true }
+        ],
+        "object-property-newline": [
+            "error",
+            { "allowMultiplePropertiesPerLine": true }
+        ],
+        "one-var": ["error", "never"],
+        "no-useless-constructor": "error",
+        "prefer-numeric-literals": "error",
+        "prefer-object-spread": "error"
+    }
 }

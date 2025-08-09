@@ -25,35 +25,36 @@ Configure test-kit once for your test run. This example mirrors a Next.js app us
 ```ts
 // jest.setup.ts
 /* eslint-disable */
-import React from "react";
-import { setupTestKit, NextRouterLike } from "test-kit";
-import { configureStore } from "@reduxjs/toolkit";
-import { ThemeProvider } from "@mui/material/styles";
-import theme from "./theme";
-import rootReducer from "./redux/rootReducer";
-import { TestQueryClientProvider } from "./__tests__/helpers/testQueryClientWrapper";
+import React from 'react';
+import { setupTestKit, NextRouterLike } from 'test-kit';
+import { configureStore } from '@reduxjs/toolkit';
+import { ThemeProvider } from '@mui/material/styles';
+import theme from './theme';
+import rootReducer from './redux/rootReducer';
+import { TestQueryClientProvider } from './__tests__/helpers/testQueryClientWrapper';
 
 // Make all next/router imports resolve to the in-memory mock
-jest.mock("next/router", () => require("next-router-mock"));
+jest.mock('next/router', () => require('next-router-mock'));
 
 setupTestKit({
-  makeStore: (preloaded) =>
-    configureStore({ reducer: rootReducer, preloadedState: preloaded }),
-  contextProviders: [
-    ({ children }) => React.createElement(ThemeProvider, { theme }, children),
-    ({ children }) =>
-      React.createElement(TestQueryClientProvider, null, children),
-  ],
-  router: {
-    // Always return the single live module instance used by app/tests
-    getRouter: (): NextRouterLike | undefined => {
-      try {
-        return require("next/router").default as NextRouterLike;
-      } catch {
-        return undefined;
-      }
+    makeStore: (preloaded) =>
+        configureStore({ reducer: rootReducer, preloadedState: preloaded }),
+    contextProviders: [
+        ({ children }) =>
+            React.createElement(ThemeProvider, { theme }, children),
+        ({ children }) =>
+            React.createElement(TestQueryClientProvider, null, children),
+    ],
+    router: {
+        // Always return the single live module instance used by app/tests
+        getRouter: (): NextRouterLike | undefined => {
+            try {
+                return require('next/router').default as NextRouterLike;
+            } catch {
+                return undefined;
+            }
+        },
     },
-  },
 });
 ```
 
@@ -65,12 +66,12 @@ Notes
 ### Creating a kit with router + state
 
 ```ts
-import { makeKitBuilder, statePlugin, routerPlugin } from "test-kit";
+import { makeKitBuilder, statePlugin, routerPlugin } from 'test-kit';
 
 // Optionally add your own page plugin here
 export const createKit = makeKitBuilder(
-  statePlugin(),
-  routerPlugin({ type: "next", initialUrl: "/" })
+    statePlugin(),
+    routerPlugin({ type: 'next', initialUrl: '/' })
 );
 ```
 
@@ -167,15 +168,15 @@ What `routerPlugin({ type: 'next' })` does
 
 ```ts
 const kit = createKit();
-kit.api.onGet("/users", { users: [] });
-await fetch("/users");
-await kit.api.expectCalledTimes("GET", "/users", 1);
+kit.api.onGet('/users', { users: [] });
+await fetch('/users');
+await kit.api.expectCalledTimes('GET', '/users', 1);
 ```
 
 ### Keyboard helpers
 
 ```ts
-await kit.keyboard("{Tab}{Enter}");
+await kit.keyboard('{Tab}{Enter}');
 ```
 
 ### Flushing async interactions
@@ -183,18 +184,18 @@ await kit.keyboard("{Tab}{Enter}");
 `kit.flow.act` now executes the interaction immediately and flushes updates for you. Prefer `await kit.flow.act(...)` and then assert; no separate `run()` is needed. A no-op `run()` remains for back-compat.
 
 ```ts
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from '@testing-library/react';
 
 // Click and flush pending updates (act + microtask handled internally)
 await kit.flow.act(async (user) => {
-  await user.click(
-    await screen.findByRole("gridcell", { name: /January 15, 2024/i })
-  );
+    await user.click(
+        await screen.findByRole('gridcell', { name: /January 15, 2024/i })
+    );
 });
 
 // Now assert UI/router state
 await waitFor(() => {
-  expect(kit.router.getLocation().path).toContain("date=2024-01-15");
+    expect(kit.router.getLocation().path).toContain('date=2024-01-15');
 });
 ```
 
@@ -206,16 +207,16 @@ Notes
 ### Date control
 
 ```ts
-import { datePlugin } from "test-kit";
-const kit = createKit(datePlugin(new Date("2024-02-01T00:00:00Z")));
+import { datePlugin } from 'test-kit';
+const kit = createKit(datePlugin(new Date('2024-02-01T00:00:00Z')));
 ```
 
 ### Generic page wiring
 
 ```ts
-import { pagePlugin } from "test-kit";
+import { pagePlugin } from 'test-kit';
 const createPage = ({ screen, user }: { screen: any; user: any }) => ({
-  clickSave: async () => user.click(screen.getByText("Save")),
+    clickSave: async () => user.click(screen.getByText('Save')),
 });
 const kit = createKit(pagePlugin(createPage));
 await kit.clickSave();

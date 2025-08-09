@@ -1,82 +1,91 @@
 {
-  "name": "@suerg/test-kit",
-  "version": "0.1.1",
-  "private": false,
-  "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/dbpiper/test-kit.git"
-  },
-  "homepage": "https://github.com/dbpiper/test-kit#readme",
-  "bugs": {
-    "url": "https://github.com/dbpiper/test-kit/issues"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
-    }
-  },
-  "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "scripts": {
-    "build": "unbuild",
-    "prepack": "npm run build",
-    "build:yalc": "npm run build && npx yalc publish",
-    "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\"",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "release": "npm publish --access public",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
-  },
-  "peerDependencies": {
-    "@reduxjs/toolkit": ">=1.9.0",
-    "@testing-library/react": ">=14.0.0",
-    "@testing-library/user-event": ">=13.0.0",
-    "@types/jest": ">=29",
-    "@types/react": ">=18",
-    "react": ">=17 <20",
-    "react-dom": ">=17 <20",
-    "react-redux": ">=8.0.0",
-    "redux": ">=4 <6"
-  },
-  "peerDependenciesMeta": {
-    "react-dom": {
-      "optional": true
+    "name": "@suerg/test-kit",
+    "version": "0.1.1",
+    "private": false,
+    "type": "module",
+    "main": "dist/index.cjs",
+    "module": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/dbpiper/test-kit.git"
     },
-    "@types/jest": {
-      "optional": true
+    "homepage": "https://github.com/dbpiper/test-kit#readme",
+    "bugs": {
+        "url": "https://github.com/dbpiper/test-kit/issues"
+    },
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.cjs"
+        }
+    },
+    "sideEffects": false,
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "unbuild",
+        "prepack": "npm run build",
+        "build:yalc": "npm run build && npx yalc publish",
+        "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\"",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "release": "npm publish --access public",
+        "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
+    },
+    "peerDependencies": {
+        "@reduxjs/toolkit": ">=1.9.0",
+        "@testing-library/react": ">=14.0.0",
+        "@testing-library/user-event": ">=13.0.0",
+        "@types/jest": ">=29",
+        "@types/react": ">=18",
+        "react": ">=17 <20",
+        "react-dom": ">=17 <20",
+        "react-redux": ">=8.0.0",
+        "redux": ">=4 <6"
+    },
+    "peerDependenciesMeta": {
+        "react-dom": {
+            "optional": true
+        },
+        "@types/jest": {
+            "optional": true
+        }
+    },
+    "dependencies": {
+        "axios": "^1.6.0",
+        "deepmerge": "^4.3.1"
+    },
+    "devDependencies": {
+        "prettier": "^3.6.2",
+        "@reduxjs/toolkit": "^2.8.2",
+        "@testing-library/react": "^16.3.0",
+        "@testing-library/user-event": "^14.6.1",
+        "@types/jest": "^30.0.0",
+        "@types/react": "^18.3.1",
+        "@typescript-eslint/eslint-plugin": "^8.38.0",
+        "@typescript-eslint/parser": "^8.38.0",
+        "eslint": "^8.57.1",
+        "eslint-config-prettier": "^10.1.0",
+        "eslint-plugin-import": "^2.32.0",
+        "eslint-plugin-jsx-a11y": "^6.10.2",
+        "eslint-plugin-prettier": "^5.5.4",
+        "eslint-plugin-promise": "^7.2.1",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^5.2.0",
+        "nodemon": "^3.1.10",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-redux": "^9.2.0",
+        "redux": "^5.0.1",
+        "typescript": "^5.9.2",
+        "unbuild": "^2.0.0",
+        "yalc": "^1.0.0-pre.53"
     }
-  },
-  "dependencies": {
-    "axios": "^1.6.0",
-    "deepmerge": "^4.3.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10",
-    "@typescript-eslint/eslint-plugin": "^8.38.0",
-    "@typescript-eslint/parser": "^8.38.0",
-    "eslint": "^8.57.1",
-    "eslint-config-prettier": "^10.1.0",
-    "@reduxjs/toolkit": "^2.8.2",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/jest": "^30.0.0",
-    "@types/react": "^18.3.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-redux": "^9.2.0",
-    "redux": "^5.0.1",
-    "typescript": "^5.9.2",
-    "unbuild": "^2.0.0",
-    "yalc": "^1.0.0-pre.53"
-  }
 }

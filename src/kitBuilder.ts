@@ -1,12 +1,12 @@
-import type { AnyPlugin, KitContext, MergeNamespacedPlugins } from "./types";
-import { createKit } from "./createKit";
-import { defaultPlugins } from "./defaultPlugins";
+import type { AnyPlugin, KitContext, MergeNamespacedPlugins } from './types';
+import { createKit } from './createKit';
+import { defaultPlugins } from './defaultPlugins';
 
 export function makeKitBuilder<B extends readonly AnyPlugin[]>(
-  ...basePlugins: B
+    ...basePlugins: B
 ): <E extends readonly AnyPlugin[]>(
-  ...extraPlugins: E
+    ...extraPlugins: E
 ) => KitContext &
-  MergeNamespacedPlugins<[...typeof defaultPlugins, ...B, ...E]> {
-  return (...extraPlugins) => createKit(...basePlugins, ...extraPlugins);
+    MergeNamespacedPlugins<[...typeof defaultPlugins, ...B, ...E]> {
+    return (...extraPlugins) => createKit(...basePlugins, ...extraPlugins);
 }
