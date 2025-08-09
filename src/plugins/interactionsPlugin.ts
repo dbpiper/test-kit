@@ -1,4 +1,5 @@
 import { screen, act } from '@testing-library/react';
+
 import type { KitContext } from '../types';
 import { definePlugin } from '../helpers/definePlugin';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,11 +79,11 @@ export const interactionsPlugin = definePlugin<
                 let input: HTMLElement;
                 try {
                     input = await (ctx.screen as typeof screen).findByLabelText(
-                        labelOrTestId as string
+                        labelOrTestId as string,
                     );
                 } catch {
                     input = (ctx.screen as typeof screen).getByTestId(
-                        labelOrTestId as string
+                        labelOrTestId as string,
                     );
                 }
                 await act(async () => {

@@ -18,6 +18,7 @@ type TestKitMatcher = {
 
 declare const expect: (actual: unknown) => TestKitMatcher;
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 interface Window {
     XMLHttpRequest: typeof XMLHttpRequest;
     fetch: typeof fetch;

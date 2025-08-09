@@ -1,5 +1,6 @@
 import { type UserEvent } from '@testing-library/user-event';
 import { act as rtlAct } from '@testing-library/react';
+
 import { definePlugin } from '../helpers/definePlugin';
 
 export type FlowHelpers = {

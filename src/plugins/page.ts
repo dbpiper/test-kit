@@ -1,6 +1,7 @@
-import { definePlugin } from '../helpers/definePlugin';
 import type { screen as RtlScreen } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
+
+import { definePlugin } from '../helpers/definePlugin';
 
 export type BaseDeps<TScreen = typeof RtlScreen, TUser = UserEvent> = {
     screen: TScreen;
@@ -12,7 +13,7 @@ export const pagePlugin = <
     TScreen = typeof RtlScreen,
     TUser = UserEvent,
 >(
-    page: (deps: BaseDeps<TScreen, TUser>) => THelpers
+    page: (deps: BaseDeps<TScreen, TUser>) => THelpers,
 ) =>
     definePlugin<'page', THelpers>('page', {
         key: Symbol('page'),

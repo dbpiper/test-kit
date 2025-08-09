@@ -1,5 +1,6 @@
 /* eslint-disable no-continue */
 import axios from 'axios';
+
 import { definePlugin } from '../helpers/definePlugin';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -101,7 +102,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             function recordCall(apiCallRecord: ApiCallRecord) {
                 calls.push(apiCallRecord);
                 callEmitter.dispatchEvent(
-                    new CustomEvent('call', { detail: apiCallRecord })
+                    new CustomEvent('call', { detail: apiCallRecord }),
                 );
             }
 
@@ -112,7 +113,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             }) {
                 abortedCalls.push(abortRecord);
                 callEmitter.dispatchEvent(
-                    new CustomEvent('abort', { detail: abortRecord })
+                    new CustomEvent('abort', { detail: abortRecord }),
                 );
             }
 
@@ -159,7 +160,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     remainingUses: 1,
                 });
                 log(
-                    `installHang completed, mockRoutes.length=${mockRoutes.length}`
+                    `installHang completed, mockRoutes.length=${mockRoutes.length}`,
                 );
             }
 
@@ -168,7 +169,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 method: HttpMethod,
                 path: string,
                 times: number,
-                timeoutMs = 1000
+                timeoutMs = 1000,
             ) {
                 const bucket = eventName === 'call' ? calls : abortedCalls;
                 const wantPath = path.startsWith('/') ? path : `/${path}`;
@@ -197,7 +198,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                     () => resolve(),
                                     {
                                         once: true,
-                                    }
+                                    },
                                 );
                             }),
                             new Promise<never>((resolve, reject) => {
@@ -205,10 +206,10 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                     () =>
                                         reject(
                                             new Error(
-                                                `timed out waiting for ${eventName}`
-                                            )
+                                                `timed out waiting for ${eventName}`,
+                                            ),
                                         ),
-                                    deadline - Date.now()
+                                    deadline - Date.now(),
                                 );
                             }),
                         ]);
@@ -226,7 +227,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     `Timed out after ${timeoutMs}ms waiting for ${times} '${eventName}' events of ${method} ${path}.\n` +
                         `Saw ${seen.length}:\n${seen
                             .map((record) => JSON.stringify(record))
-                            .join('\n')}`
+                            .join('\n')}`,
                 );
             }
 
@@ -265,7 +266,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         if (stubUrl.search) {
                             let paramsMatch = true;
                             for (const [key, value] of Array.from(
-                                stubUrl.searchParams.entries()
+                                stubUrl.searchParams.entries(),
                             )) {
                                 if (!actualParams.getAll(key).includes(value)) {
                                     paramsMatch = false;
@@ -279,7 +280,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
                         const mount = actual.slice(
                             0,
-                            actual.length - stubPath.length
+                            actual.length - stubPath.length,
                         );
                         return { route, stubPath, mount };
                     }
@@ -325,7 +326,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
                     const match = matchRoute(
                         this.method as HttpMethod,
-                        this.url
+                        this.url,
                     );
                     if (!match) {
                         this.readyState = FakeXHR.DONE;
@@ -365,7 +366,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                             > = {};
                             new URL(
                                 this.url,
-                                window.location.origin
+                                window.location.origin,
                             ).searchParams.forEach((value, key) => {
                                 if (!queryParams[key]) {
                                     queryParams[key] = value;
@@ -396,7 +397,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
 
                     const finish = (responseBody: unknown) => {
-                        if (this.aborted) return;
+                        if (this.aborted) {return;}
                         this.timerId = window.setTimeout(() => {
                             this.timerId = undefined;
                             this.readyState = FakeXHR.DONE;
@@ -413,7 +414,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (match.route.body as Promise<unknown>)
                             .then((resolved) => finish(resolved))
                             .catch(() => {
-                                if (this.aborted) return;
+                                if (this.aborted) {return;}
                                 this.timerId = window.setTimeout(() => {
                                     this.readyState = FakeXHR.DONE;
                                     this.status = 0;
@@ -439,8 +440,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     log(
                         `[API Plugin] Recording abort with path: ${stubPath.replace(
                             /\/$/,
-                            ''
-                        )}`
+                            '',
+                        )}`,
                     );
                     recordAbort({
                         method: this.method as HttpMethod,
@@ -464,7 +465,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
             window.fetch = async (
                 input: RequestInfo | URL,
-                init?: RequestInit
+                init?: RequestInit,
             ) => {
                 const url =
                     typeof input === 'string'
@@ -481,7 +482,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         new Response(JSON.stringify({ data: {} }), {
                             status: 200,
                             headers: { 'Content-Type': 'application/json' },
-                        })
+                        }),
                     );
                 }
 
@@ -498,7 +499,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                   (init.headers as Headers).forEach(
                                       (value, key) => {
                                           obj[key] = String(value);
-                                      }
+                                      },
                                   );
                                   return obj;
                               })()
@@ -512,7 +513,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                             {};
                         new URL(
                             url,
-                            window.location.origin
+                            window.location.origin,
                         ).searchParams.forEach((value, key) => {
                             if (!queryParams[key]) {
                                 queryParams[key] = value;
@@ -532,7 +533,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 });
 
                 log(
-                    `Mock found for ${method} ${url} -> ${match.route.rawPath}`
+                    `Mock found for ${method} ${url} -> ${match.route.rawPath}`,
                 );
 
                 if (match.route.status === 0) {
@@ -547,7 +548,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         new Response(bodyText, {
                             status: match.route.status,
                             headers: { 'Content-Type': 'application/json' },
-                        })
+                        }),
                     );
                 }
 
@@ -559,12 +560,12 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     const onAbort = () => {
                         log(`Fetch abort called for ${method} ${url}`);
                         log('[API Plugin] match:', match);
-                        if (aborted) return;
+                        if (aborted) {return;}
                         aborted = true;
                         clearTimeout(tid);
                         const abortPath = match.stubPath.replace(/\/$/, '');
                         log(
-                            `[API Plugin] Recording fetch abort with path: ${abortPath}`
+                            `[API Plugin] Recording fetch abort with path: ${abortPath}`,
                         );
                         recordAbort({
                             method,
@@ -585,9 +586,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
 
                     const sendResponse = (responseBody: unknown) => {
-                        if (aborted) return;
+                        if (aborted) {return;}
                         tid = window.setTimeout(() => {
-                            if (aborted) return;
+                            if (aborted) {return;}
                             const bodyText = JSON.stringify(responseBody);
                             resolve(
                                 new Response(bodyText, {
@@ -595,7 +596,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                     headers: {
                                         'Content-Type': 'application/json',
                                     },
-                                })
+                                }),
                             );
                             signal?.removeEventListener('abort', onAbort);
                         }, 0);
@@ -605,7 +606,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (match.route.body as Promise<unknown>)
                             .then((resolved) => sendResponse(resolved))
                             .catch(() => {
-                                if (aborted) return;
+                                if (aborted) {return;}
                                 reject(new Error('Network Error'));
                             });
                     }
@@ -622,7 +623,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 rawPath: string,
                 body: unknown,
                 status = 200,
-                repeat = 1
+                repeat = 1,
             ) {
                 log(`Installing mock for ${method} ${rawPath}`);
                 mockRoutes.push({
@@ -639,25 +640,25 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number
+                repeat?: number,
             ) => install('GET', path, body, status ?? 200, repeat ?? 1);
             const onPost = (
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number
+                repeat?: number,
             ) => install('POST', path, body, status ?? 200, repeat ?? 1);
             const onPut = (
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number
+                repeat?: number,
             ) => install('PUT', path, body, status ?? 200, repeat ?? 1);
             const onDelete = (
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number
+                repeat?: number,
             ) => install('DELETE', path, body, status ?? 200, repeat ?? 1);
 
             const chaos = {
@@ -685,18 +686,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (!method || call.method === method) &&
                         (!path ||
                             call.path ===
-                                (path.startsWith('/') ? path : `/${path}`))
+                                (path.startsWith('/') ? path : `/${path}`)),
                 );
 
             const expectCalledTimes = (
                 method: HttpMethod,
                 path: string,
-                times: number
+                times: number,
             ) => expectEventTimes('call', method, path, times);
             const expectAbortedTimes = (
                 method: HttpMethod,
                 path: string,
-                times: number
+                times: number,
             ) => expectEventTimes('abort', method, path, times);
 
             const clear = () => {
@@ -710,13 +711,13 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             const expectNoPending = async () => {
                 await waitForIdle();
                 const pending = mockRoutes.filter(
-                    (route) => route.remainingUses > 0
+                    (route) => route.remainingUses > 0,
                 );
                 if (pending.length) {
                     throw new Error(
                         `Mocks never called: ${pending
                             .map((route) => `${route.method} ${route.rawPath}`)
-                            .join(', ')}`
+                            .join(', ')}`,
                     );
                 }
             };

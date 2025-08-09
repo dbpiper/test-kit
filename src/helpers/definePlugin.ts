@@ -5,7 +5,7 @@ export function definePlugin<Name extends string, Helpers>(
     pluginConfig: Omit<Plugin<Name, Helpers>, 'name'> & {
         key: symbol;
         setup(ctx: KitContext): Helpers;
-    }
+    },
 ): Plugin<Name, Helpers> & (() => Plugin<Name, Helpers>) {
     const { key, setup, teardown } = pluginConfig;
     const plugin: Plugin<Name, Helpers> = {

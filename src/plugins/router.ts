@@ -36,7 +36,7 @@ export function routerPlugin(options: {
     initialUrl?: string;
 }): ReturnType<typeof definePlugin<'router', RouterHelpers>>;
 export function routerPlugin(
-    arg: RouterAdapter | { type: 'next'; initialUrl?: string }
+    arg: RouterAdapter | { type: 'next'; initialUrl?: string },
 ) {
     const adapter: RouterAdapter =
         typeof (arg as { type: string }).type === 'string'
@@ -49,12 +49,12 @@ export function routerPlugin(
                       const nextRouter = env?.getRouter?.();
                       if (!nextRouter) {
                           throw new Error(
-                              'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.'
+                              'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.',
                           );
                       }
                       return createNextRouterAdapter(
                           nextRouter,
-                          opts.initialUrl
+                          opts.initialUrl,
                       );
                   }
                   throw new Error(`Unsupported router type: ${opts.type}`);
@@ -67,10 +67,10 @@ export function routerPlugin(
             adapter.init?.();
             const navigate = async (
                 to: RouteTo,
-                opts?: { replace?: boolean }
+                opts?: { replace?: boolean },
             ) => {
                 if (opts?.replace)
-                    return adapter.replace(to) as Promise<boolean | void>;
+                    {return adapter.replace(to) as Promise<boolean | void>;}
                 return adapter.push(to) as Promise<boolean | void>;
             };
             return {
@@ -101,7 +101,7 @@ export type NextRouterLike = {
 
 export function createNextRouterAdapter(
     router: NextRouterLike,
-    initialUrl?: string
+    initialUrl?: string,
 ): RouterAdapter {
     // Keep our own deterministic snapshot to avoid flakiness in mocks
     let currentPathname = router.pathname;
@@ -109,7 +109,7 @@ export function createNextRouterAdapter(
     let currentQuery: Record<string, unknown> = (router as any).query ?? {};
 
     const parse = (
-        to: string | { pathname: string; query?: Record<string, unknown> }
+        to: string | { pathname: string; query?: Record<string, unknown> },
     ) =>
         typeof to === 'string'
             ? { pathname: to, query: {} as Record<string, unknown> }
@@ -117,11 +117,11 @@ export function createNextRouterAdapter(
 
     const serializeQuery = (q: Record<string, unknown>) => {
         const entries = Object.entries(q);
-        if (entries.length === 0) return '';
+        if (entries.length === 0) {return '';}
         const search = entries
             .map(
                 ([k, v]) =>
-                    `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`
+                    `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`,
             )
             .join('&');
         return `?${search}`;
@@ -136,7 +136,7 @@ export function createNextRouterAdapter(
         const live = env?.getRouter?.();
         if (!live) {
             throw new Error(
-                'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.'
+                'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.',
             );
         }
         return live;
@@ -165,7 +165,7 @@ export function createNextRouterAdapter(
                               },
                         // accept extra args (as, options) like Next router
                         ...rest: unknown[]
-                    ) => Promise<boolean>
+                    ) => Promise<boolean>,
                 ) =>
                 async (
                     to:
@@ -181,8 +181,8 @@ export function createNextRouterAdapter(
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     return fn(to as any, ...rest);
                 };
-            if (originalPush) live.push = wrapAndTrack(originalPush);
-            if (originalReplace) live.replace = wrapAndTrack(originalReplace);
+            if (originalPush) {live.push = wrapAndTrack(originalPush);}
+            if (originalReplace) {live.replace = wrapAndTrack(originalReplace);}
         },
         push: async (to) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,7 +223,7 @@ export type ReactNavigationLike = {
 
 export function createReactNavigationAdapter(
     navigation: ReactNavigationLike,
-    initialRoute?: { name: string; params?: Record<string, unknown> }
+    initialRoute?: { name: string; params?: Record<string, unknown> },
 ): RouterAdapter {
     return {
         init: () => {
@@ -242,25 +242,25 @@ export function createReactNavigationAdapter(
             }
             navigation.navigate(
                 to.pathname,
-                to.query as Record<string, unknown>
+                to.query as Record<string, unknown>,
             );
             return true;
         },
         replace: (to) => {
             if (navigation.replace) {
-                if (typeof to === 'string') return navigation.replace(to);
+                if (typeof to === 'string') {return navigation.replace(to);}
                 return navigation.replace(
                     to.pathname,
-                    to.query as Record<string, unknown>
+                    to.query as Record<string, unknown>,
                 );
             }
             // fallback: navigate
-            if (typeof to === 'string') navigation.navigate(to);
+            if (typeof to === 'string') {navigation.navigate(to);}
             else
-                navigation.navigate(
+                {navigation.navigate(
                     to.pathname,
-                    to.query as Record<string, unknown>
-                );
+                    to.query as Record<string, unknown>,
+                );}
             return true;
         },
         getLocation: () => {

@@ -13,5 +13,5 @@ export const keyboardPlugin = definePlugin<'keyboard', KeyboardHelpers>(
                 keyboard: (seq: string) => ctx.user.keyboard(seq),
             };
         },
-    }
+    },
 );

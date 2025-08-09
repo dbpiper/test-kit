@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
+
 import type {
     MinimalMiddleware,
     MinimalStore,

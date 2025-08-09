@@ -31,6 +31,17 @@
         "sourceType": "module",
         "project": ["./tsconfig.json"]
     },
+    "settings": {
+        "react": { "version": "detect" },
+        "import/resolver": {
+            "typescript": {
+                "project": "./tsconfig.json"
+            },
+            "node": {
+                "extensions": [".js", ".jsx", ".ts", ".tsx"]
+            }
+        }
+    },
     "rules": {
         "id-length": [
             "error",
@@ -91,7 +102,17 @@
         "prefer-template": "error",
         "radix": ["error", "always"],
         "yoda": ["error", "never", { "onlyEquality": true }],
-        "no-underscore-dangle": ["error", { "allowAfterThis": false }],
+        "no-underscore-dangle": [
+            "error",
+            {
+                "allowAfterThis": false,
+                "allow": [
+                    "__TEST_KIT_ORIGINAL_DATE__",
+                    "__TEST_KIT_REDUX_ENV__",
+                    "__TEST_KIT_ROUTER_ENV__"
+                ]
+            }
+        ],
         "no-unneeded-ternary": "error",
         "no-mixed-operators": "off",
         "prefer-destructuring": [
@@ -158,5 +179,17 @@
         "no-useless-constructor": "error",
         "prefer-numeric-literals": "error",
         "prefer-object-spread": "error"
-    }
+    },
+    "overrides": [
+        {
+            "files": ["*.js", "*.cjs", "build.config.ts"],
+            "parserOptions": { "project": null }
+        },
+        {
+            "files": ["**/*.d.ts"],
+            "rules": {
+                "@typescript-eslint/consistent-type-definitions": "off"
+            }
+        }
+    ]
 }
