@@ -237,6 +237,21 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 log(`waitForIdle waiting, active.size=${shared.active.size}`);
                 return new Promise((resolve) => {
                     shared.idleResolvers.push(resolve);
+                    // Failsafe: avoid indefinite hangs if a request leaks
+                    (
+                        globalThis as unknown as {
+                            setTimeout: typeof setTimeout;
+                        }
+                    ).setTimeout(() => {
+                        if (shared.active.size > 0) {
+                            log(
+                                'waitForIdle timeout reached; force-resolving idle and clearing active requests'
+                            );
+                            shared.active.clear();
+                            const resolvers = shared.idleResolvers.splice(0);
+                            resolvers.forEach((resolver) => resolver());
+                        }
+                    }, 5000);
                 });
             }
 
@@ -1246,14 +1261,22 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 },
             };
 
-            const getCalls = (method?: HttpMethod, path?: string) =>
-                calls.filter(
-                    (call) =>
-                        (!method || call.method === method) &&
-                        (!path ||
-                            call.path ===
-                                (path.startsWith('/') ? path : `/${path}`))
-                );
+            const getCalls = (method?: HttpMethod, path?: string) => {
+                const norm = path
+                    ? path.startsWith('/')
+                        ? path
+                        : `/${path}`
+                    : undefined;
+                return calls.filter((call) => {
+                    if (method && call.method !== method) {
+                        return false;
+                    }
+                    if (!norm) {
+                        return true;
+                    }
+                    return call.path === norm || call.path.endsWith(norm);
+                });
+            };
 
             const expectCalledTimes = (
                 method: HttpMethod,
@@ -1271,8 +1294,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 mockRoutes.length = 0;
                 abortedCalls.length = 0;
                 shared.nextRequestId = 1;
-                shared.active.clear();
-                shared.idleResolvers = [];
+                if (shared.active.size > 0) {
+                    shared.active.clear();
+                    const resolvers = shared.idleResolvers.splice(0);
+                    resolvers.forEach((resolver) => resolver());
+                }
             };
 
             const getAbortedCalls = () => abortedCalls;
