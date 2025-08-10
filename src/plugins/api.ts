@@ -761,8 +761,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     typeof require !== 'undefined'
                         ? require('axios')
                         : undefined;
+                // Support both CJS and ESM default export shapes
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const axiosLocal = maybeAxios as any | undefined;
+                const axiosLocal: any | undefined =
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (maybeAxios as any)?.defaults
+                        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          (maybeAxios as any)
+                        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          (maybeAxios as any)?.default?.defaults
+                          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (maybeAxios as any).default
+                          : undefined;
                 if (axiosLocal?.defaults) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     originalAxiosAdapter = (axiosLocal as any).defaults
@@ -988,8 +998,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     typeof require !== 'undefined'
                         ? require('axios')
                         : undefined;
+                // Support both CJS and ESM default export shapes
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const axiosLocal = maybeAxios as any | undefined;
+                const axiosLocal: any | undefined =
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (maybeAxios as any)?.defaults
+                        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          (maybeAxios as any)
+                        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          (maybeAxios as any)?.default?.defaults
+                          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (maybeAxios as any).default
+                          : undefined;
                 if (axiosLocal?.defaults) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (axiosLocal as any).defaults.adapter = originalAxiosAdapter;
