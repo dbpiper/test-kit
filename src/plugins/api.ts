@@ -1246,14 +1246,22 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 },
             };
 
-            const getCalls = (method?: HttpMethod, path?: string) =>
-                calls.filter(
-                    (call) =>
-                        (!method || call.method === method) &&
-                        (!path ||
-                            call.path ===
-                                (path.startsWith('/') ? path : `/${path}`))
-                );
+            const getCalls = (method?: HttpMethod, path?: string) => {
+                const norm = path
+                    ? path.startsWith('/')
+                        ? path
+                        : `/${path}`
+                    : undefined;
+                return calls.filter((call) => {
+                    if (method && call.method !== method) {
+                        return false;
+                    }
+                    if (!norm) {
+                        return true;
+                    }
+                    return call.path === norm || call.path.endsWith(norm);
+                });
+            };
 
             const expectCalledTimes = (
                 method: HttpMethod,
