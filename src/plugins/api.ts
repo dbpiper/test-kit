@@ -1,7 +1,27 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /* eslint-disable no-continue */
-import axios from 'axios';
 
 import { definePlugin } from '../helpers/definePlugin';
+
+// Minimal helper to build a URL string similar to axios.getUri when axios is not available
+function buildUrlFromConfig(config: {
+    baseURL?: string;
+    url?: string;
+}): string {
+    const base =
+        config.baseURL ||
+        ((globalThis as unknown as { location?: { origin?: string } }).location
+            ?.origin ??
+            'http://localhost');
+    const path = config.url || '';
+    try {
+        return new URL(path, base).toString();
+    } catch {
+        const baseTrim = String(base).replace(/\/$/, '');
+        const pathTrim = String(path).replace(/^\//, '');
+        return `${baseTrim}/${pathTrim}`;
+    }
+}
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -288,10 +308,40 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
 
                     const maybeRaw = route.rawPath;
-                    const stubFull = axios.getUri({
-                        baseURL: baseOrigin,
-                        url: maybeRaw,
-                    });
+                    // Try to use axios.getUri if axios is available at runtime; otherwise fall back
+                    let stubFull: string;
+                    try {
+                        // eslint-disable-next-line max-len
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                        const maybeAxios: unknown =
+                            typeof require !== 'undefined'
+                                ? require('axios')
+                                : undefined;
+                        const ax = maybeAxios as
+                            | {
+                                  getUri?: (cfg: {
+                                      baseURL?: string;
+                                      url?: string;
+                                  }) => string;
+                              }
+                            | undefined;
+                        if (ax?.getUri) {
+                            stubFull = ax.getUri({
+                                baseURL: baseOrigin,
+                                url: maybeRaw,
+                            });
+                        } else {
+                            stubFull = buildUrlFromConfig({
+                                baseURL: baseOrigin,
+                                url: maybeRaw,
+                            });
+                        }
+                    } catch {
+                        stubFull = buildUrlFromConfig({
+                            baseURL: baseOrigin,
+                            url: maybeRaw,
+                        });
+                    }
                     const stubUrl = new URL(stubFull);
                     const stubPath = stubUrl.pathname;
 
@@ -702,66 +752,98 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 });
             };
 
-            // Force axios to use fetch/XHR adapter so our mocks intercept in Node/Jest
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            originalAxiosAdapter = (axios as any).defaults?.adapter;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (axios as any).defaults = (axios as any).defaults || {};
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (axios as any).defaults.adapter = async (config: any) => {
-                const url = axios.getUri(config);
-                const method = (config.method || 'GET').toUpperCase();
-                const headers = config.headers || {};
-                const body = config.data;
-                try {
-                    const res = await gFetch(url, { method, headers, body });
-                    const text = await res.text();
-                    const data = (() => {
-                        try {
-                            return JSON.parse(text);
-                        } catch {
-                            return text;
-                        }
-                    })();
-                    // Reject for non-2xx like axios normally does
-                    if (res.status < 200 || res.status >= 300) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const err: any = new Error(
-                            `Request failed with status code ${res.status}`
-                        );
-                        err.response = {
-                            data,
-                            status: res.status,
-                            statusText: String(res.status),
-                            headers: {},
-                            config,
-                        };
-                        err.request = { status: res.status };
-                        throw err;
-                    }
-                    return {
-                        data,
-                        status: res.status,
-                        statusText: String(res.status),
-                        headers: {},
-                        config,
-                        request: { status: res.status },
-                    };
-                } catch (error) {
-                    // Normalize network errors to include request.status = 0
+            // Force axios (if available) to use
+            // fetch/XHR adapter so our mocks intercept in Node/Jest
+            try {
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                const maybeAxios: unknown =
+                    typeof require !== 'undefined'
+                        ? require('axios')
+                        : undefined;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const axiosLocal = maybeAxios as any | undefined;
+                if (axiosLocal?.defaults) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    if (!(error as any).response) {
+                    originalAxiosAdapter = (axiosLocal as any).defaults
+                        ?.adapter;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (axiosLocal as any).defaults =
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const err: any =
-                            error instanceof Error
-                                ? error
-                                : new Error('Network Error');
-                        err.request = { status: 0 };
-                        throw err;
-                    }
-                    throw error;
+                        (axiosLocal as any).defaults || {};
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (axiosLocal as any).defaults.adapter = async (
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        config: any
+                    ) => {
+                        const url =
+                            (axiosLocal?.getUri?.(config) as
+                                | string
+                                | undefined) ||
+                            buildUrlFromConfig({
+                                baseURL: config.baseURL,
+                                url: config.url,
+                            });
+                        const method = (config.method || 'GET').toUpperCase();
+                        const headers = config.headers || {};
+                        const body = config.data;
+                        try {
+                            const res = await gFetch(url, {
+                                method,
+                                headers,
+                                body,
+                            });
+                            const text = await res.text();
+                            const data = (() => {
+                                try {
+                                    return JSON.parse(text);
+                                } catch {
+                                    return text;
+                                }
+                            })();
+                            // Reject for non-2xx like axios normally does
+                            if (res.status < 200 || res.status >= 300) {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const err: any = new Error(
+                                    `Request failed with status code ${res.status}`
+                                );
+                                err.response = {
+                                    data,
+                                    status: res.status,
+                                    statusText: String(res.status),
+                                    headers: {},
+                                    config,
+                                };
+                                err.request = { status: res.status };
+                                throw err;
+                            }
+                            return {
+                                data,
+                                status: res.status,
+                                statusText: String(res.status),
+                                headers: {},
+                                config,
+                                request: { status: res.status },
+                            };
+                        } catch (error) {
+                            // Normalize network errors to include request.status = 0
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            if (!(error as any).response) {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const err: any =
+                                    error instanceof Error
+                                        ? error
+                                        : new Error('Network Error');
+                                err.request = { status: 0 };
+                                throw err;
+                            }
+                            throw error;
+                        }
+                    };
                 }
-            };
+            } catch {
+                // axios not installed; no-op. Fetch/XHR interception still works.
+            }
 
             // Override XMLHttpRequest
             (
@@ -898,10 +980,22 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             ).XMLHttpRequest = originalXHR;
             (globalThis as unknown as { fetch: typeof fetch }).fetch =
                 originalFetch;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if ((axios as any).defaults) {
+            // Restore axios adapter only if axios is available
+            try {
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                const maybeAxios: unknown =
+                    typeof require !== 'undefined'
+                        ? require('axios')
+                        : undefined;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (axios as any).defaults.adapter = originalAxiosAdapter;
+                const axiosLocal = maybeAxios as any | undefined;
+                if (axiosLocal?.defaults) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (axiosLocal as any).defaults.adapter = originalAxiosAdapter;
+                }
+            } catch {
+                // ignore
             }
         },
     });
