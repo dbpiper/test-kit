@@ -91,6 +91,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
     let originalFetch: typeof fetch;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let originalAxiosAdapter: any;
+    let originalAxiosAdapterEnv: string | undefined;
 
     return definePlugin<'api', ApiHelpers>('api', {
         key: Symbol('api'),
@@ -104,6 +105,26 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             ).XMLHttpRequest;
             originalFetch = (globalThis as unknown as { fetch: typeof fetch })
                 .fetch;
+
+            // Force axios to use XHR adapter
+            // regardless of Node/browser env so our FakeXHR intercepts
+            originalAxiosAdapterEnv = (
+                globalThis as unknown as {
+                    process?: { env?: Record<string, string | undefined> };
+                }
+            ).process?.env?.AXIOS_HTTP_ADAPTER as string | undefined;
+            ((
+                globalThis as unknown as {
+                    process?: { env?: Record<string, string | undefined> };
+                }
+            ).process ??= { env: {} }).env = {
+                ...((
+                    globalThis as unknown as {
+                        process?: { env?: Record<string, string | undefined> };
+                    }
+                ).process?.env ?? {}),
+                AXIOS_HTTP_ADAPTER: 'xhr',
+            };
 
             const calls: ApiCallRecord[] = [];
             const abortedCalls: {
@@ -776,6 +797,77 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                           ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             (maybeAxios as any).default
                           : undefined;
+                // Generic adapter that drives requests through gFetch,
+                // independent of the specific axios module instance
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const makeAdapter = () => async (config: any) => {
+                    const url: string = (() => {
+                        if (
+                            typeof config.url === 'string' &&
+                            /^https?:\/\//i.test(config.url)
+                        ) {
+                            return config.url as string;
+                        }
+                        return buildUrlFromConfig({
+                            baseURL: config.baseURL,
+                            url: config.url,
+                        });
+                    })();
+                    const method = (config.method || 'GET').toUpperCase();
+                    const headers = config.headers || {};
+                    const body = config.data;
+                    try {
+                        const res = await gFetch(url, {
+                            method,
+                            headers,
+                            body,
+                        });
+                        const text = await res.text();
+                        const data = (() => {
+                            try {
+                                return JSON.parse(text);
+                            } catch {
+                                return text;
+                            }
+                        })();
+                        if (res.status < 200 || res.status >= 300) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const err: any = new Error(
+                                `Request failed with status code ${res.status}`
+                            );
+                            err.response = {
+                                data,
+                                status: res.status,
+                                statusText: String(res.status),
+                                headers: {},
+                                config,
+                            };
+                            err.request = { status: res.status };
+                            throw err;
+                        }
+                        return {
+                            data,
+                            status: res.status,
+                            statusText: String(res.status),
+                            headers: {},
+                            config,
+                            request: { status: res.status },
+                        };
+                    } catch (error) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        if (!(error as any).response) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const err: any =
+                                error instanceof Error
+                                    ? error
+                                    : new Error('Network Error');
+                            err.request = { status: 0 };
+                            throw err;
+                        }
+                        throw error;
+                    }
+                };
+
                 if (axiosLocal?.defaults) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     originalAxiosAdapter = (axiosLocal as any).defaults
@@ -785,74 +877,50 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         (axiosLocal as any).defaults || {};
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (axiosLocal as any).defaults.adapter = async (
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        config: any
-                    ) => {
-                        const url =
-                            (axiosLocal?.getUri?.(config) as
-                                | string
-                                | undefined) ||
-                            buildUrlFromConfig({
-                                baseURL: config.baseURL,
-                                url: config.url,
-                            });
-                        const method = (config.method || 'GET').toUpperCase();
-                        const headers = config.headers || {};
-                        const body = config.data;
-                        try {
-                            const res = await gFetch(url, {
-                                method,
-                                headers,
-                                body,
-                            });
-                            const text = await res.text();
-                            const data = (() => {
-                                try {
-                                    return JSON.parse(text);
-                                } catch {
-                                    return text;
-                                }
-                            })();
-                            // Reject for non-2xx like axios normally does
-                            if (res.status < 200 || res.status >= 300) {
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const err: any = new Error(
-                                    `Request failed with status code ${res.status}`
-                                );
-                                err.response = {
-                                    data,
-                                    status: res.status,
-                                    statusText: String(res.status),
-                                    headers: {},
-                                    config,
-                                };
-                                err.request = { status: res.status };
-                                throw err;
-                            }
-                            return {
-                                data,
-                                status: res.status,
-                                statusText: String(res.status),
-                                headers: {},
-                                config,
-                                request: { status: res.status },
-                            };
-                        } catch (error) {
-                            // Normalize network errors to include request.status = 0
+                    (axiosLocal as any).defaults.adapter = makeAdapter();
+                }
+
+                // Best-effort: patch any other loaded axios modules in the require cache
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const cache: any =
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-undef
+                        typeof require !== 'undefined'
+                            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              (require as any).cache
+                            : undefined;
+                    if (cache) {
+                        // eslint-disable-next-line guard-for-in, no-restricted-syntax
+                        for (const key in cache) {
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            if (!(error as any).response) {
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const err: any =
-                                    error instanceof Error
-                                        ? error
-                                        : new Error('Network Error');
-                                err.request = { status: 0 };
-                                throw err;
+                            const exp: any = cache[key]?.exports;
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const candidates: any[] = [];
+                            if (exp?.defaults) {
+                                candidates.push(exp);
                             }
-                            throw error;
+                            if (exp?.default?.defaults) {
+                                candidates.push(exp.default);
+                            }
+                            // eslint-disable-next-line no-restricted-syntax
+                            for (const candidate of candidates) {
+                                try {
+                                    if (candidate.defaults) {
+                                        if (originalAxiosAdapter == null) {
+                                            originalAxiosAdapter =
+                                                candidate.defaults.adapter;
+                                        }
+                                        candidate.defaults.adapter =
+                                            makeAdapter();
+                                    }
+                                } catch {
+                                    /* ignore candidate failures */
+                                }
+                            }
                         }
-                    };
+                    }
+                } catch {
+                    /* ignore cache scan */
                 }
             } catch {
                 // axios not installed; no-op. Fetch/XHR interception still works.
@@ -993,6 +1061,19 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             ).XMLHttpRequest = originalXHR;
             (globalThis as unknown as { fetch: typeof fetch }).fetch =
                 originalFetch;
+            // Restore axios adapter env selection
+            const proc = (
+                globalThis as unknown as {
+                    process?: { env?: Record<string, string | undefined> };
+                }
+            ).process;
+            if (proc?.env) {
+                if (originalAxiosAdapterEnv === undefined) {
+                    delete proc.env.AXIOS_HTTP_ADAPTER;
+                } else {
+                    proc.env.AXIOS_HTTP_ADAPTER = originalAxiosAdapterEnv;
+                }
+            }
             // Restore axios adapter only if axios is available
             try {
                 // eslint-disable-next-line max-len
