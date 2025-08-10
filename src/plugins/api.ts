@@ -92,6 +92,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let originalAxiosAdapter: any;
     let originalAxiosAdapterEnv: string | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let originalModuleRequire: any;
 
     return definePlugin<'api', ApiHelpers>('api', {
         key: Symbol('api'),
@@ -126,17 +128,35 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 AXIOS_HTTP_ADAPTER: 'xhr',
             };
 
-            const calls: ApiCallRecord[] = [];
-            const abortedCalls: {
-                method: HttpMethod;
-                path: string;
-                timestamp: number;
-            }[] = [];
-            const mockRoutes: Route[] = [];
+            const globalState = globalThis as unknown as {
+                __testKitApi?: {
+                    calls: ApiCallRecord[];
+                    abortedCalls: {
+                        method: HttpMethod;
+                        path: string;
+                        timestamp: number;
+                    }[];
+                    mockRoutes: Route[];
+                    nextRequestId: number;
+                    active: Set<number>;
+                    idleResolvers: Array<() => void>;
+                };
+            };
+            // eslint-disable-next-line no-underscore-dangle
+            const shared = (globalState.__testKitApi ??= {
+                calls: [] as ApiCallRecord[],
+                abortedCalls: [] as {
+                    method: HttpMethod;
+                    path: string;
+                    timestamp: number;
+                }[],
+                mockRoutes: [] as Route[],
+                nextRequestId: 1,
+                active: new Set<number>(),
+                idleResolvers: [] as Array<() => void>,
+            });
 
-            let nextRequestId = 1;
-            const active = new Set<number>();
-            let idleResolvers: Array<() => void> = [];
+            const { calls, abortedCalls, mockRoutes } = shared;
 
             // Minimal event emitter to avoid DOM EventTarget/CustomEvent in RN
             const listeners: Record<
@@ -185,34 +205,36 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             }
 
             function startRequest(): number {
-                const id = nextRequestId++;
-                active.add(id);
-                log(`startRequest: id=${id}, active.size=${active.size}`);
+                const id = shared.nextRequestId++;
+                shared.active.add(id);
+                log(
+                    `startRequest: id=${id}, active.size=${shared.active.size}`
+                );
                 return id;
             }
 
             function endRequest(id: number) {
-                log(`endRequest: id=${id}, active.size=${active.size}`);
-                if (!active.delete(id)) {
+                log(`endRequest: id=${id}, active.size=${shared.active.size}`);
+                if (!shared.active.delete(id)) {
                     log(`endRequest: id=${id} was already removed`);
                     return;
                 }
-                if (active.size === 0) {
+                if (shared.active.size === 0) {
                     log('endRequest: resolving all idle resolvers');
-                    idleResolvers.forEach((resolve) => resolve());
-                    idleResolvers = [];
+                    shared.idleResolvers.forEach((resolve) => resolve());
+                    shared.idleResolvers = [];
                 }
             }
 
             function waitForIdle(): Promise<void> {
-                log(`waitForIdle called, active.size=${active.size}`);
-                if (active.size === 0) {
+                log(`waitForIdle called, active.size=${shared.active.size}`);
+                if (shared.active.size === 0) {
                     log('waitForIdle resolving immediately');
                     return Promise.resolve();
                 }
-                log(`waitForIdle waiting, active.size=${active.size}`);
+                log(`waitForIdle waiting, active.size=${shared.active.size}`);
                 return new Promise((resolve) => {
-                    idleResolvers.push(resolve);
+                    shared.idleResolvers.push(resolve);
                 });
             }
 
@@ -1029,6 +1051,64 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 } catch {
                     /* ignore cache scan */
                 }
+
+                // Also patch Module.prototype.require to catch future axios requires
+                try {
+                    // eslint-disable-next-line max-len
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                    const Module = require('module');
+                    const proto = (
+                        Module as {
+                            prototype?: {
+                                require?: unknown;
+                            };
+                        }
+                    ).prototype;
+                    if (
+                        proto &&
+                        typeof proto.require === 'function' &&
+                        !originalModuleRequire
+                    ) {
+                        originalModuleRequire = proto.require;
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any, func-names
+                        proto.require = function (
+                            this: unknown,
+                            request: string,
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            ...args: any[]
+                        ) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const exp: any = originalModuleRequire.apply(this, [
+                                request,
+                                ...args,
+                            ]);
+                            if (request === 'axios') {
+                                try {
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    const candidate: any | undefined =
+                                        exp?.defaults
+                                            ? exp
+                                            : exp?.default?.defaults
+                                              ? exp.default
+                                              : undefined;
+                                    if (candidate?.defaults) {
+                                        if (originalAxiosAdapter == null) {
+                                            originalAxiosAdapter =
+                                                candidate.defaults.adapter;
+                                        }
+                                        candidate.defaults.adapter =
+                                            makeAdapter();
+                                    }
+                                } catch {
+                                    /* ignore */
+                                }
+                            }
+                            return exp;
+                        } as typeof proto.require;
+                    }
+                } catch {
+                    /* ignore intercept setup 2 */
+                }
             } catch {
                 // axios not installed; no-op. Fetch/XHR interception still works.
             }
@@ -1126,6 +1206,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 calls.length = 0;
                 mockRoutes.length = 0;
                 abortedCalls.length = 0;
+                shared.nextRequestId = 1;
+                shared.active.clear();
+                shared.idleResolvers = [];
             };
 
             const getAbortedCalls = () => abortedCalls;
@@ -1180,6 +1263,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 } else {
                     proc.env.AXIOS_HTTP_ADAPTER = originalAxiosAdapterEnv;
                 }
+            }
+            // Restore Module.prototype.require if we patched it
+            try {
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                const Module = require('module');
+                if (originalModuleRequire && Module?.prototype?.require) {
+                    Module.prototype.require = originalModuleRequire;
+                    originalModuleRequire = undefined;
+                }
+            } catch {
+                /* ignore */
             }
             // Restore axios adapter only if axios is available
             try {
