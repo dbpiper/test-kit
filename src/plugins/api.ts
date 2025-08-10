@@ -93,6 +93,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
     let originalAxiosAdapter: any;
     let originalAxiosAdapterEnv: string | undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let originalAxiosRequest: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let originalModuleRequire: any;
 
     return definePlugin<'api', ApiHelpers>('api', {
@@ -1007,6 +1009,28 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (axiosLocal as any).defaults || {};
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (axiosLocal as any).defaults.adapter = makeAdapter();
+                    // Also patch request() directly to be resilient to adapter selection
+                    try {
+                        if (
+                            !originalAxiosRequest &&
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (axiosLocal as any).request
+                        ) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            originalAxiosRequest = (axiosLocal as any).request;
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (axiosLocal as any).request = (config: any) =>
+                                (
+                                    makeAdapter() as unknown as (
+                                        // eslint-disable-next-line max-len
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        cfg: any
+                                    ) => Promise<unknown>
+                                )(config);
+                        }
+                    } catch {
+                        /* ignore */
+                    }
                 }
 
                 // Best-effort: patch any other loaded axios modules in the require cache
@@ -1041,6 +1065,26 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                         }
                                         candidate.defaults.adapter =
                                             makeAdapter();
+                                        // Best-effort: also patch request()
+                                        try {
+                                            if (
+                                                !originalAxiosRequest &&
+                                                candidate.request
+                                            ) {
+                                                originalAxiosRequest =
+                                                    candidate.request;
+                                                candidate.request = (
+                                                    config: unknown
+                                                ) =>
+                                                    (
+                                                        makeAdapter() as unknown as (
+                                                            cfg: unknown
+                                                        ) => Promise<unknown>
+                                                    )(config);
+                                            }
+                                        } catch {
+                                            /* ignore */
+                                        }
                                     }
                                 } catch {
                                     /* ignore candidate failures */
@@ -1098,6 +1142,26 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                         }
                                         candidate.defaults.adapter =
                                             makeAdapter();
+                                        // Also patch request() for newly loaded axios instances
+                                        try {
+                                            if (
+                                                !originalAxiosRequest &&
+                                                candidate.request
+                                            ) {
+                                                originalAxiosRequest =
+                                                    candidate.request;
+                                                candidate.request = (
+                                                    config: unknown
+                                                ) =>
+                                                    (
+                                                        makeAdapter() as unknown as (
+                                                            cfg: unknown
+                                                        ) => Promise<unknown>
+                                                    )(config);
+                                            }
+                                        } catch {
+                                            /* ignore */
+                                        }
                                     }
                                 } catch {
                                     /* ignore */
@@ -1299,6 +1363,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 if (axiosLocal?.defaults) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (axiosLocal as any).defaults.adapter = originalAxiosAdapter;
+                    if (originalAxiosRequest) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        (axiosLocal as any).request = originalAxiosRequest;
+                        originalAxiosRequest = undefined;
+                    }
                 }
             } catch {
                 // ignore
