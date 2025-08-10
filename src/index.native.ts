@@ -1,4 +1,5 @@
-export * from './types';
+export type * from './types/core';
+export type * from './types/native';
 export * from './helpers/definePlugin';
 export { createKitNative } from './createKitNative';
 export { defaultPluginsNative } from './defaultPlugins.native';

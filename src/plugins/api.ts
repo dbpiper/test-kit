@@ -69,6 +69,8 @@ export type ApiHelpers = {
 export const apiPlugin = (config: ApiConfig = {}) => {
     let originalXHR: typeof XMLHttpRequest;
     let originalFetch: typeof fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let originalAxiosAdapter: any;
 
     return definePlugin<'api', ApiHelpers>('api', {
         key: Symbol('api'),
@@ -700,6 +702,67 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 });
             };
 
+            // Force axios to use fetch/XHR adapter so our mocks intercept in Node/Jest
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            originalAxiosAdapter = (axios as any).defaults?.adapter;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (axios as any).defaults = (axios as any).defaults || {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (axios as any).defaults.adapter = async (config: any) => {
+                const url = axios.getUri(config);
+                const method = (config.method || 'GET').toUpperCase();
+                const headers = config.headers || {};
+                const body = config.data;
+                try {
+                    const res = await gFetch(url, { method, headers, body });
+                    const text = await res.text();
+                    const data = (() => {
+                        try {
+                            return JSON.parse(text);
+                        } catch {
+                            return text;
+                        }
+                    })();
+                    // Reject for non-2xx like axios normally does
+                    if (res.status < 200 || res.status >= 300) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const err: any = new Error(
+                            `Request failed with status code ${res.status}`
+                        );
+                        err.response = {
+                            data,
+                            status: res.status,
+                            statusText: String(res.status),
+                            headers: {},
+                            config,
+                        };
+                        err.request = { status: res.status };
+                        throw err;
+                    }
+                    return {
+                        data,
+                        status: res.status,
+                        statusText: String(res.status),
+                        headers: {},
+                        config,
+                        request: { status: res.status },
+                    };
+                } catch (error) {
+                    // Normalize network errors to include request.status = 0
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (!(error as any).response) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const err: any =
+                            error instanceof Error
+                                ? error
+                                : new Error('Network Error');
+                        err.request = { status: 0 };
+                        throw err;
+                    }
+                    throw error;
+                }
+            };
+
             // Override XMLHttpRequest
             (
                 globalThis as unknown as {
@@ -835,6 +898,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             ).XMLHttpRequest = originalXHR;
             (globalThis as unknown as { fetch: typeof fetch }).fetch =
                 originalFetch;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if ((axios as any).defaults) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (axios as any).defaults.adapter = originalAxiosAdapter;
+            }
         },
     });
 };

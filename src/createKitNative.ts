@@ -1,28 +1,29 @@
 import { screen, userEvent } from '@testing-library/react-native';
 
-import type {
-    AnyPlugin,
-    KitContextFor,
-    MergeNamespacedPlugins,
-    NativeUser,
-} from './types';
+import type { AnyPlugin, MergeNamespacedPlugins } from './types/core';
+import type { NativeUser } from './types/native';
 import { defaultPluginsNative } from './defaultPlugins.native';
 
+export function createKitNative(): import('./types/native').NativeKitContext &
+    MergeNamespacedPlugins<[...typeof defaultPluginsNative]>;
 export function createKitNative<const T extends readonly AnyPlugin[]>(
     ...extras: T
-): KitContextFor<'native'> &
+): import('./types/native').NativeKitContext &
     MergeNamespacedPlugins<[...typeof defaultPluginsNative, ...T]>;
 
 export function createKitNative(
-    pluginsOrFirst: unknown,
+    pluginsOrFirst?: unknown,
     ...rest: unknown[]
 ): unknown {
-    const explicit: AnyPlugin[] = Array.isArray(pluginsOrFirst)
-        ? (pluginsOrFirst as AnyPlugin[])
-        : ([
-              pluginsOrFirst as AnyPlugin,
-              ...(rest as AnyPlugin[]),
-          ] as AnyPlugin[]);
+    const explicit: AnyPlugin[] =
+        pluginsOrFirst === undefined
+            ? []
+            : Array.isArray(pluginsOrFirst)
+              ? (pluginsOrFirst as AnyPlugin[])
+              : ([
+                    pluginsOrFirst as AnyPlugin,
+                    ...(rest as AnyPlugin[]),
+                ] as AnyPlugin[]);
 
     const explicitKeys = new Set(explicit.map((plugin) => plugin.key));
     const all: AnyPlugin[] = [
@@ -34,7 +35,7 @@ export function createKitNative(
 
     const rnUser: NativeUser = userEvent.setup();
 
-    const ctx: KitContextFor<'native'> = {
+    const ctx: import('./types/native').NativeKitContext = {
         screen,
         user: rnUser,
         add(helpers: unknown) {

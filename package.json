@@ -1,8 +1,9 @@
 {
     "name": "@suerg/test-kit",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "private": false,
     "type": "module",
+    "react-native": "dist/index.native.cjs",
     "main": "dist/index.cjs",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
@@ -16,14 +17,14 @@
     },
     "exports": {
         ".": {
+            "react-native": {
+                "types": "./dist/index.native.d.ts",
+                "import": "./dist/index.native.mjs",
+                "require": "./dist/index.native.cjs"
+            },
             "types": "./dist/index.d.ts",
             "import": "./dist/index.mjs",
             "require": "./dist/index.cjs"
-        },
-        "./native": {
-            "types": "./dist/index.native.d.ts",
-            "import": "./dist/index.native.mjs",
-            "require": "./dist/index.native.cjs"
         }
     },
     "sideEffects": false,
@@ -33,7 +34,7 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "unbuild",
+        "build": "unbuild && node --enable-source-maps scripts/postbuild.mjs",
         "prepack": "npm run build",
         "build:yalc": "npm run build && npx yalc publish",
         "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\"",
@@ -42,7 +43,7 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "release": "npm publish --access public",
-        "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
+        "prepublishOnly": "npm run build"
     },
     "peerDependencies": {
         "@reduxjs/toolkit": ">=1.9.0",

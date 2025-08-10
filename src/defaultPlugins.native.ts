@@ -1,4 +1,4 @@
-import type { MergePlugins } from './types';
+import type { MergePlugins } from './types/core';
 import { apiPlugin } from './plugins/api';
 import { datePlugin } from './plugins/datePlugin';
 import { performancePlugin } from './plugins/performance';

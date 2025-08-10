@@ -21,7 +21,8 @@
     }
 })();
 
-export * from './types';
+export type * from './types/core';
+export type * from './types/web';
 export * from './helpers/definePlugin';
 export { createKit } from './createKit';
 export { makeKitBuilder } from './kitBuilder';
@@ -39,4 +40,3 @@ export { configureRedux } from './redux/config';
 export * from './plugins/router';
 export { setupTestKit } from './setup';
 export { configureRouter } from './router/config';
-export { createKitNative } from './createKitNative';
