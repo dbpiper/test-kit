@@ -1,11 +1,19 @@
-// Ensure a minimal window.store exists as early as possible so consumer axios
-// interceptors that read window.store don't crash before tests render.
+// Ensure a minimal store exists on window or globalThis so early axios
+// interceptors that read it don't crash before tests render.
 (() => {
-    if (
-        typeof window !== 'undefined' &&
-        !(window as unknown as { store?: unknown }).store
-    ) {
-        (window as unknown as { store: unknown }).store = {
+    const g = globalThis as unknown as {
+        window?: { store?: unknown };
+        store?: unknown;
+    };
+    if (g.window && !g.window.store) {
+        g.window.store = {
+            getState: () => ({}),
+            dispatch: () => {},
+            subscribe: () => () => {},
+        } as unknown;
+    }
+    if (!g.window && !g.store) {
+        g.store = {
             getState: () => ({}),
             dispatch: () => {},
             subscribe: () => () => {},
@@ -31,3 +39,4 @@ export { configureRedux } from './redux/config';
 export * from './plugins/router';
 export { setupTestKit } from './setup';
 export { configureRouter } from './router/config';
+export { createKitNative } from './createKitNative';

@@ -1,7 +1,10 @@
-import type { NextRouterLike } from '../plugins/router';
+import type { NextRouterLike, ReactNavigationLike } from '../plugins/router';
 
 export type RouterEnvironment = {
-    getRouter: () => NextRouterLike | undefined;
+    // Return a router instance for the active platform.
+    // For web (Next), this should be a NextRouter-like object.
+    // For React Native, this should be a ReactNavigation-like object.
+    getRouter: () => NextRouterLike | ReactNavigationLike | undefined;
 };
 
 declare global {

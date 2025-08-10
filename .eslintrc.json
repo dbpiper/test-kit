@@ -40,7 +40,8 @@
             "node": {
                 "extensions": [".js", ".jsx", ".ts", ".tsx"]
             }
-        }
+        },
+        "import/core-modules": ["@testing-library/react-native"]
     },
     "rules": {
         "id-length": [
@@ -69,7 +70,7 @@
         "react/jsx-props-no-spreading": "off",
         "arrow-body-style": ["error", "as-needed"],
         "arrow-parens": ["error", "always"],
-        "comma-dangle": ["error", "always-multiline"],
+        "comma-dangle": "off",
         "consistent-return": "error",
         "eqeqeq": ["error", "always", { "null": "ignore" }],
         "no-var": "error",

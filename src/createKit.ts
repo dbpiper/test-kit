@@ -1,14 +1,20 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { AnyPlugin, KitContext, MergeNamespacedPlugins } from './types';
+import type {
+    AnyPlugin,
+    KitContextFor,
+    MergeNamespacedPlugins,
+    WebUser,
+} from './types';
 import { defaultPlugins } from './defaultPlugins';
 
 // A single var-arg overload that always merges defaultPlugins first,
 // then any extras, into a namespaced shape.
 export function createKit<const T extends readonly AnyPlugin[]>(
     ...extras: T
-): KitContext & MergeNamespacedPlugins<[...typeof defaultPlugins, ...T]>;
+): KitContextFor<'web'> &
+    MergeNamespacedPlugins<[...typeof defaultPlugins, ...T]>;
 
 // implementation
 export function createKit(
@@ -28,16 +34,16 @@ export function createKit(
         ...explicit,
     ];
 
-    const user =
+    const user: WebUser =
         typeof (userEvent as unknown as { setup?: unknown }).setup ===
         'function'
             ? // v14+: userEvent.setup()
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (userEvent as any).setup({ delay: null })
+              ((userEvent as any).setup({ delay: null }) as WebUser)
             : // v13 and earlier: userEvent is already a ready-to-use API object
-              (userEvent as unknown as KitContext['user']);
+              (userEvent as unknown as WebUser);
 
-    const ctx: KitContext = {
+    const ctx: KitContextFor<'web'> = {
         screen,
         user,
         add(helpers: unknown) {

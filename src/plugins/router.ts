@@ -32,27 +32,48 @@ export function routerPlugin(
     adapter: RouterAdapter
 ): ReturnType<typeof definePlugin<'router', RouterHelpers>>;
 export function routerPlugin(options: {
-    type: 'next';
-    initialUrl?: string;
+    type: 'next' | 'react-navigation';
+    initialUrl?: string; // only used by 'next'
+    // For react-navigation, tests should prefer passing a concrete adapter built
+    // from a NavigationContainer ref. This options overload is for web only.
 }): ReturnType<typeof definePlugin<'router', RouterHelpers>>;
 export function routerPlugin(
-    arg: RouterAdapter | { type: 'next'; initialUrl?: string },
+    arg:
+        | RouterAdapter
+        | { type: 'next' | 'react-navigation'; initialUrl?: string }
 ) {
     const adapter: RouterAdapter =
         typeof (arg as { type: string }).type === 'string'
             ? // Build adapter for known types
               (() => {
-                  const opts = arg as { type: 'next'; initialUrl?: string };
+                  const opts = arg as {
+                      type: 'next' | 'react-navigation';
+                      initialUrl?: string;
+                  };
                   if (opts.type === 'next') {
                       // Require a router to be provided via setupTestKit({ router })
                       const env = getConfiguredRouter();
                       const nextRouter = env?.getRouter?.();
                       if (!nextRouter) {
                           throw new Error(
-                              'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.',
+                              'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.'
                           );
                       }
-                      return createNextRouterAdapter(nextRouter);
+                      return createNextRouterAdapter(
+                          nextRouter as NextRouterLike
+                      );
+                  }
+                  if (opts.type === 'react-navigation') {
+                      const env = getConfiguredRouter();
+                      const nav = env?.getRouter?.();
+                      if (!nav) {
+                          throw new Error(
+                              'test-kit: Router not configured. Provide a React Navigation router via setupTestKit({ router: { getRouter } }) or pass an adapter.'
+                          );
+                      }
+                      return createReactNavigationAdapter(
+                          nav as ReactNavigationLike
+                      );
                   }
                   throw new Error(`Unsupported router type: ${opts.type}`);
               })()
@@ -64,7 +85,7 @@ export function routerPlugin(
             adapter.init?.();
             const navigate = async (
                 to: RouteTo,
-                opts?: { replace?: boolean },
+                opts?: { replace?: boolean }
             ) => {
                 if (opts?.replace) {
                     return adapter.replace(to) as Promise<boolean | void>;
@@ -104,7 +125,7 @@ export function createNextRouterAdapter(router: NextRouterLike): RouterAdapter {
     let currentQuery: Record<string, unknown> = (router as any).query ?? {};
 
     const parse = (
-        to: string | { pathname: string; query?: Record<string, unknown> },
+        to: string | { pathname: string; query?: Record<string, unknown> }
     ) =>
         typeof to === 'string'
             ? { pathname: to, query: {} as Record<string, unknown> }
@@ -119,8 +140,8 @@ export function createNextRouterAdapter(router: NextRouterLike): RouterAdapter {
             .map(
                 ([key, value]) =>
                     `${encodeURIComponent(key)}=${encodeURIComponent(
-                        String(value),
-                    )}`,
+                        String(value)
+                    )}`
             )
             .join('&');
         return `?${search}`;
@@ -135,7 +156,7 @@ export function createNextRouterAdapter(router: NextRouterLike): RouterAdapter {
         const live = env?.getRouter?.();
         if (!live) {
             throw new Error(
-                'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.',
+                'test-kit: Router not configured. Call setupTestKit({ router: { getRouter } }) in your test setup.'
             );
         }
         return live;
@@ -164,7 +185,7 @@ export function createNextRouterAdapter(router: NextRouterLike): RouterAdapter {
                               },
                         // accept extra args (as, options) like Next router
                         ...rest: unknown[]
-                    ) => Promise<boolean>,
+                    ) => Promise<boolean>
                 ) =>
                 async (
                     to:
@@ -215,10 +236,10 @@ export function createNextRouterAdapter(router: NextRouterLike): RouterAdapter {
 
 // React Navigation adapter (supports navigate/replace and current route)
 export type ReactNavigationLike = {
-    navigate: (name: string, params?: Record<string, unknown>) => void;
-    reset?: (state: unknown) => void;
-    dispatch?: (action: unknown) => void;
-    replace?: (name: string, params?: Record<string, unknown>) => void;
+    navigate: (name: string, params?: Record<string, unknown>) => unknown;
+    reset?: (state: unknown) => unknown;
+    dispatch?: (action: unknown) => unknown;
+    replace?: (name: string, params?: Record<string, unknown>) => unknown;
     getCurrentRoute?: () =>
         | { name: string; params?: Record<string, unknown> }
         | undefined;
@@ -226,7 +247,7 @@ export type ReactNavigationLike = {
 
 export function createReactNavigationAdapter(
     navigation: ReactNavigationLike,
-    initialRoute?: { name: string; params?: Record<string, unknown> },
+    initialRoute?: { name: string; params?: Record<string, unknown> }
 ): RouterAdapter {
     return {
         init: () => {
@@ -241,34 +262,34 @@ export function createReactNavigationAdapter(
         push: (to) => {
             if (typeof to === 'string') {
                 navigation.navigate(to);
-                return true;
+            } else {
+                navigation.navigate(
+                    to.pathname,
+                    to.query as Record<string, unknown>
+                );
             }
-            navigation.navigate(
-                to.pathname,
-                to.query as Record<string, unknown>,
-            );
-            return true;
         },
         replace: (to) => {
             if (navigation.replace) {
                 if (typeof to === 'string') {
-                    return navigation.replace(to);
+                    navigation.replace(to);
+                    return;
                 }
-                return navigation.replace(
+                navigation.replace(
                     to.pathname,
-                    to.query as Record<string, unknown>,
+                    to.query as Record<string, unknown>
                 );
+                return;
             }
             // fallback: navigate
             if (typeof to === 'string') {
                 navigation.navigate(to);
-            } else {
-                navigation.navigate(
-                    to.pathname,
-                    to.query as Record<string, unknown>,
-                );
+                return;
             }
-            return true;
+            navigation.navigate(
+                to.pathname,
+                to.query as Record<string, unknown>
+            );
         },
         getLocation: () => {
             const route = navigation.getCurrentRoute?.();

@@ -13,14 +13,14 @@ export const pagePlugin = <
     TScreen = typeof RtlScreen,
     TUser = UserEvent,
 >(
-    page: (deps: BaseDeps<TScreen, TUser>) => THelpers,
+    page: (deps: BaseDeps<TScreen, TUser>) => THelpers
 ) =>
     definePlugin<'page', THelpers>('page', {
         key: Symbol('page'),
         setup(ctx) {
             const helpers = page({
-                screen: ctx.screen as unknown as TScreen,
-                user: ctx.user as unknown as TUser,
+                screen: ctx.screen as TScreen,
+                user: ctx.user as TUser,
             });
             ctx.add(helpers);
             return helpers;
