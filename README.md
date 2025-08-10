@@ -17,7 +17,7 @@ Default plugins included when you create a kit:
 React (web):
 
 ```bash
-npm i -D @suerg/test-kit @testing-library/react @testing-library/user-event @reduxjs/toolkit react-redux
+npm i -D @suerg/test-kit @testing-library/react @testing-library/user-event @reduxjs/toolkit react-redux react-dom
 # Optional but common in web apps
 npm i -D @testing-library/jest-dom
 ```
@@ -25,7 +25,7 @@ npm i -D @testing-library/jest-dom
 React Native:
 
 ```bash
-npm i -D @suerg/test-kit @testing-library/react-native @reduxjs/toolkit react-redux
+npm i -D @suerg/test-kit @testing-library/react-native @reduxjs/toolkit react-redux react-dom
 ```
 
 If you intend to use the router plugin on web with Next.js, also ensure a single router instance is available to tests (e.g., `next-router-mock` or Next’s `useRouter()` module instance).
