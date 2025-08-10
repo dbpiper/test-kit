@@ -1,26 +1,32 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { AnyPlugin, KitContext, MergeNamespacedPlugins } from './types';
+import type { AnyPlugin, MergeNamespacedPlugins } from './types/core';
+import type { WebUser } from './types/web';
 import { defaultPlugins } from './defaultPlugins';
 
-// A single var-arg overload that always merges defaultPlugins first,
-// then any extras, into a namespaced shape.
+// Overloads: zero-arg uses only defaultPlugins; var-arg merges extras after defaults
+export function createKit(): import('./types/web').WebKitContext &
+    MergeNamespacedPlugins<[...typeof defaultPlugins]>;
 export function createKit<const T extends readonly AnyPlugin[]>(
     ...extras: T
-): KitContext & MergeNamespacedPlugins<[...typeof defaultPlugins, ...T]>;
+): import('./types/web').WebKitContext &
+    MergeNamespacedPlugins<[...typeof defaultPlugins, ...T]>;
 
 // implementation
 export function createKit(
-    pluginsOrFirst: unknown,
+    pluginsOrFirst?: unknown,
     ...rest: unknown[]
 ): unknown {
-    const explicit: AnyPlugin[] = Array.isArray(pluginsOrFirst)
-        ? (pluginsOrFirst as AnyPlugin[])
-        : ([
-              pluginsOrFirst as AnyPlugin,
-              ...(rest as AnyPlugin[]),
-          ] as AnyPlugin[]);
+    const explicit: AnyPlugin[] =
+        pluginsOrFirst === undefined
+            ? []
+            : Array.isArray(pluginsOrFirst)
+              ? (pluginsOrFirst as AnyPlugin[])
+              : ([
+                    pluginsOrFirst as AnyPlugin,
+                    ...(rest as AnyPlugin[]),
+                ] as AnyPlugin[]);
 
     const explicitKeys = new Set(explicit.map((plugin) => plugin.key));
     const all: AnyPlugin[] = [
@@ -28,16 +34,16 @@ export function createKit(
         ...explicit,
     ];
 
-    const user =
+    const user: WebUser =
         typeof (userEvent as unknown as { setup?: unknown }).setup ===
         'function'
             ? // v14+: userEvent.setup()
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (userEvent as any).setup({ delay: null })
+              ((userEvent as any).setup({ delay: null }) as WebUser)
             : // v13 and earlier: userEvent is already a ready-to-use API object
-              (userEvent as unknown as KitContext['user']);
+              (userEvent as unknown as WebUser);
 
-    const ctx: KitContext = {
+    const ctx: import('./types/web').WebKitContext = {
         screen,
         user,
         add(helpers: unknown) {

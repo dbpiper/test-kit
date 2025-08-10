@@ -1,26 +1,40 @@
 # @suerg/test-kit
 
-Typed, batteries-included testing kit for React Testing Library.
+Typed, batteries-included helpers for building stable, readable integration tests with React Testing Library on both React (web) and React Native.
 
-- **createKit(...plugins?)**: preconfigured with default plugins; pass extras to extend.
-- **makeKitBuilder(...basePlugins)**: create your own default bundle.
-- **definePlugin(name, { key, setup, teardown? })**: strongly-typed plugins.
+- Purpose: provide a small, strongly-typed “kit” you compose once per test that bundles common test ergonomics: Redux state setup, API mocking, interactions, router control, time control, and more.
+- Design: plugin-based. Add only what you need; bring your own app providers via global setup.
 
-Default plugins included:
+Default plugins included when you create a kit:
 
-- flow, api, interactions, keyboard, date, performance, dnd, page (generic)
-- state (requires Redux config)
-- router (via `routerPlugin` with a configured router environment)
+- flow, api, interactions, keyboard, date, performance, dnd, page (web)
+- flow, api, interactions, date, performance (native)
+- state (web and native; requires a Redux store factory via global setup)
+- router is available via `routerPlugin(...)` when a router environment is configured
 
-Install peer deps:
+## Install
+
+React (web):
 
 ```bash
-npm i -D @testing-library/react @testing-library/user-event @reduxjs/toolkit react-redux
+npm i -D @suerg/test-kit @testing-library/react @testing-library/user-event @reduxjs/toolkit react-redux
+# Optional but common in web apps
+npm i -D @testing-library/jest-dom
 ```
 
-## Global setup in `jest.setup.ts`
+React Native:
 
-Configure test-kit once for your test run. This example mirrors a Next.js app using Redux, Material UI, React Query, and `next-router-mock`.
+```bash
+npm i -D @suerg/test-kit @testing-library/react-native @reduxjs/toolkit react-redux
+```
+
+If you intend to use the router plugin on web with Next.js, also ensure a single router instance is available to tests (e.g., `next-router-mock` or Next’s `useRouter()` module instance).
+
+## Global setup (one-time)
+
+Provide your Redux store factory and any app-wide providers. Optionally provide a router getter.
+
+React (example):
 
 ```ts
 // jest.setup.ts
@@ -29,12 +43,9 @@ import React from 'react';
 import { setupTestKit, NextRouterLike } from '@suerg/test-kit';
 import { configureStore } from '@reduxjs/toolkit';
 import { ThemeProvider } from '@mui/material/styles';
-import theme from './theme';
-import rootReducer from './redux/rootReducer';
+import rootReducer from '@/redux/rootReducer';
 import { TestQueryClientProvider } from './__tests__/helpers/testQueryClientWrapper';
-
-// Make all next/router imports resolve to the in-memory mock
-jest.mock('next/router', () => require('next-router-mock'));
+import theme from './theme';
 
 setupTestKit({
     makeStore: (preloaded) =>
@@ -46,7 +57,6 @@ setupTestKit({
             React.createElement(TestQueryClientProvider, null, children),
     ],
     router: {
-        // Always return the single live module instance used by app/tests
         getRouter: (): NextRouterLike | undefined => {
             try {
                 return require('next/router').default as NextRouterLike;
@@ -58,214 +68,307 @@ setupTestKit({
 });
 ```
 
-Notes
-
-- Router configuration is required for `routerPlugin({ type: 'next' })`. If the router is not provided, the plugin will throw during setup.
-- `setupTestKit` also wires your Redux store factory and any additional React providers used by your app so `statePlugin().renderWithState(...)` can wrap components.
-
-## Creating a kit with router + state
+React Native (example):
 
 ```ts
-import { makeKitBuilder, statePlugin, routerPlugin } from '@suerg/test-kit';
+// jest.setup.(ts|js)
+/* eslint-disable */
+import React from 'react';
+import { setupTestKit } from '@suerg/test-kit';
+import { Provider as PaperProvider } from 'react-native-paper';
+import {
+    SafeAreaProvider,
+    initialWindowMetrics,
+} from 'react-native-safe-area-context';
+import { makeStore } from '@/src/store/store';
+import { theme } from '@/src/constants/theme';
 
-// Optionally add your own page plugin here
-export const createKit = makeKitBuilder(
-    statePlugin(),
-    routerPlugin({ type: 'next', initialUrl: '/' })
-);
-```
-
-## Rendering a component under providers
-
-You can use your own test helper, or directly wrap via `statePlugin`:
-
-```ts
-import { render, screen, waitFor } from "@testing-library/react";
-import { createKit, statePlugin } from "@suerg/test-kit";
-import { App } from "./App";
-
-const kit = createKit(
-  statePlugin({
-    presets: [
-      /* add optional state presets here */
+setupTestKit({
+    makeStore: (preloaded) => makeStore(preloaded),
+    contextProviders: [
+        ({ children }) =>
+            React.createElement(PaperProvider, { theme }, children),
+        ({ children }) =>
+            React.createElement(
+                SafeAreaProvider,
+                { initialMetrics: initialWindowMetrics },
+                children
+            ),
     ],
-  })
-);
-
-const ui = kit.state.renderWithState(<App />);
-render(ui);
-
-await waitFor(() => expect(screen.getByText("Calendar")).toBeInTheDocument());
-```
-
-## Example: Next.js navigation with `routerPlugin`
-
-This resembles the pattern from a real test (e.g., `MonthView.test.tsx`):
-
-```ts
-import React from "react";
-import { screen, waitFor } from "@testing-library/react";
-import nextRouter from "next/router";
-import { makeKitBuilder, statePlugin, routerPlugin } from "@suerg/test-kit";
-import { MonthView } from "@/features/calendar/components/views/MonthView";
-
-const createMonthKit = makeKitBuilder(
-  statePlugin(),
-  routerPlugin({ type: "next", initialUrl: "/" })
-);
-
-it("selects a date and reflects it in the URL", async () => {
-  // Optionally instrument the live router to capture calls
-  const liveRouter = (await import("next/router")).default as typeof nextRouter;
-  const calls: unknown[][] = [];
-  const originalReplace = liveRouter.replace.bind(liveRouter);
-  (liveRouter as any).replace = jest.fn(async (...args: unknown[]) => {
-    calls.push(args);
-    return originalReplace(...(args as [unknown, ...unknown[]]));
-  });
-
-  const kit = createMonthKit(
-    statePlugin({
-      presets: [
-        /* app-specific state presets */
-      ],
-    })
-  );
-
-  const ui = kit.state.renderWithState(
-    <MonthView locationId="1" addShiftMode={false} addBlockMode={false} />
-  );
-  const { user } = await import("@testing-library/user-event").then((m) => ({
-    user: m.default.setup(),
-  }));
-  const { render } = await import("@testing-library/react");
-
-  render(ui);
-
-  // Interact
-  const dayCell = await screen.findByRole("gridcell", {
-    name: /January 15, 2024/i,
-  });
-  await user.click(dayCell);
-
-  // Assert router state via the plugin (same instance as the app)
-  await waitFor(() => {
-    expect(kit.router.getLocation().path).toContain("date=2024-01-15");
-  });
-
-  // Optional: verify the captured replace arguments
-  expect(calls.length).toBeGreaterThan(0);
 });
 ```
 
-What `routerPlugin({ type: 'next' })` does
+Notes
 
-- Reads the single router instance you provide via `setupTestKit({ router: { getRouter } })`.
-- Wraps `push/replace` on that live instance to keep an internal snapshot in sync with route updates.
-- `kit.router.getLocation()` returns `{ path, pathname, query }` based on the live router.
+- The `statePlugin()` uses your `makeStore(preloaded)` and wraps the UI under `react-redux`’s `Provider` plus any `contextProviders` you pass above.
+- For web Next.js routing, `routerPlugin({ type: 'next' })` requires `setupTestKit({ router: { getRouter } })` to return the single live router instance used by tests and app.
 
-## API mocking
+React Native router setup (React Navigation):
 
 ```ts
-const kit = createKit();
-kit.api.onGet('/users', { users: [] });
-await fetch('/users');
-await kit.api.expectCalledTimes('GET', '/users', 1);
+// jest.setup.(ts|js)
+/* eslint-disable */
+import { setupTestKit } from '@suerg/test-kit';
+import { createNavigationContainerRef } from '@react-navigation/native';
+
+export const navigationRef = createNavigationContainerRef();
+
+setupTestKit({
+    makeStore: (preloaded) => makeStore(preloaded),
+    router: {
+        getRouter: () => navigationRef.current,
+    },
+});
 ```
 
-## Keyboard helpers
+In tests, render your navigator with the same ref and use the router plugin:
+
+```tsx
+import { NavigationContainer } from '@react-navigation/native';
+import { navigationRef } from '../jest.setup';
+
+const kit = createKitNative(routerPlugin({ type: 'react-navigation' }));
+render(
+    kit.state.renderWithState(
+        <NavigationContainer ref={navigationRef}>
+            <AppNavigator />
+        </NavigationContainer>
+    )
+);
+
+await kit.router.navigate('Details', { id: '1' });
+```
+
+## Creating a kit
+
+Web:
+
+```ts
+import {
+    createKit,
+    makeKitBuilder,
+    statePlugin,
+    routerPlugin,
+    pagePlugin,
+} from '@suerg/test-kit';
+
+// One-off kit
+const kit = createKit(statePlugin(), routerPlugin({ type: 'next' }));
+
+// Reusable builder with defaults
+export const makeAppKit = makeKitBuilder(
+    statePlugin(),
+    routerPlugin({ type: 'next' })
+);
+const appKit = makeAppKit(
+    pagePlugin(({ screen, user }) => ({
+        clickSave: () => user.click(screen.getByText('Save')),
+    }))
+);
+```
+
+React Native:
+
+```ts
+import { createKitNative, statePlugin } from '@suerg/test-kit';
+
+const kit = createKitNative(statePlugin());
+```
+
+## Rendering and interacting (integration test examples)
+
+Web (Next.js style):
+
+```ts
+import { render, screen, waitFor } from '@testing-library/react';
+import { makeKitBuilder, statePlugin, routerPlugin } from '@suerg/test-kit';
+import { MonthView } from '@/features/calendar/components/views/MonthView';
+
+const makeMonthKit = makeKitBuilder(statePlugin(), routerPlugin({ type: 'next' }));
+const kit = makeMonthKit();
+
+render(kit.state.renderWithState(<MonthView locationId="1" addShiftMode={false} addBlockMode={false} />));
+
+await kit.flow.act(async (user) => {
+  await user.click(await screen.findByRole('gridcell', { name: /January 15, 2024/i }));
+});
+
+await waitFor(() => expect(kit.router.getLocation().path).toContain('date=2024-01-15'));
+```
+
+React Native (React Navigation style):
+
+```ts
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react-native';
+import { createKitNative, statePlugin } from '@suerg/test-kit';
+import RootStackNavigator from '@/src/navigation/RootStackNavigator';
+
+const kit = createKitNative(statePlugin());
+render(kit.state.renderWithState(<RootStackNavigator />));
+
+await kit.flow.act(async (user) => {
+  await user.press(await screen.findByText('Save'));
+});
+
+await waitFor(() => expect(screen.getByText('Login')).toBeDefined());
+```
+
+## API Plugin (HTTP mocking)
+
+Available as part of defaults (web and native):
+
+- onGet/onPost/onPut/onDelete(path, body, status = 200, repeat = 1)
+- onGetHang(path)
+- chaos: rateLimit(path), serverError(path), timeout(path), networkError(path)
+- getCalls(method?, path?) -> ApiCallRecord[]
+- expectCalledTimes(method, path, times)
+- expectAbortedTimes(method, path, times)
+- waitForIdle(), expectNoPending(), clear()
+- getAbortedCalls()
+
+Example:
+
+```ts
+kit.api.onGet('/api/users', { users: [] }, 200);
+await fetch('/api/users');
+await kit.api.expectCalledTimes('GET', '/api/users', 1);
+await kit.api.expectNoPending();
+```
+
+## State Plugin (Redux)
+
+Helpers:
+
+- store(): returns the configured store instance created with current presets/patch
+- use(preset): register a function that derives a state patch from the initial state
+- withPatch(patch): merge-in static preloaded state
+- withProviders(providers): add more wrapper providers for this kit
+- renderWithState(ui): wraps `ui` with `Provider` and extra providers
+- stubState(path, value) or stubState({ nested: patches })
+
+Example:
+
+```ts
+const kit = createKit(statePlugin());
+kit.state.stubState('auth.user.id', '1');
+render(kit.state.renderWithState(<App />));
+```
+
+## Flow Plugin
+
+- act(async (user) => { `/* interactions */` }): wraps in RTL `act()` and flushes microtasks
+
+## Interactions Plugins
+
+Web (`interactionsPlugin`):
+
+- clickCell(label)
+- clickButton(label)
+- clickByText(text)
+- clickByTestId(testId)
+- typeText(labelOrTestId, text)
+- selectViaKb(label)
+- hoverElement(label)
+- hoverText(text)
+- clearSelections()
+- expectSelected(label)
+- expectNotSelected(label)
+
+React Native (`interactionsNativePlugin`):
+
+- tapByText(text)
+- tapByTestId(testId)
+- typeText(testIdOrLabel, text)
+- longPressByText(text)
+- longPressByTestId(testId)
+
+## Keyboard Plugin (web)
+
+- keyboard(seq: string): delegates to userEvent.keyboard
 
 ```ts
 await kit.keyboard('{Tab}{Enter}');
 ```
 
-## Flushing async interactions
+## DnD Plugin (web)
+
+- drop(element, data?): fires dragEnter/dragOver/drop with simple dataTransfer
+
+## Performance Plugin
+
+- shouldCompleteWithin(ms)
+- shouldRenderWithin(ms)
+- shouldUpdateWithin(ms)
+- shouldInteractWithin(ms)
+- run(testFn)
 
 ```ts
-import { screen, waitFor } from '@testing-library/react';
-
-// Click and flush pending updates (act + microtask handled internally)
-await kit.flow.act(async (user) => {
-    await user.click(
-        await screen.findByRole('gridcell', { name: /January 15, 2024/i })
-    );
-});
-
-// Now assert UI/router state
-await waitFor(() => {
-    expect(kit.router.getLocation().path).toContain('date=2024-01-15');
+kit.performance.shouldRenderWithin(25);
+await kit.performance.run(async () => {
+  render(kit.state.renderWithState(<App />));
 });
 ```
 
-Notes
+## Date Plugin
 
-- `kit.flow.act` returns a Promise and should be awaited. It wraps the interaction in React Testing Library's `act()` and performs a microtask flush for libraries like MUI.
-
-## Date control
+Freezes `Date` to a fixed moment without switching to fake timers. Useful when you prefer real timers but deterministic time.
 
 ```ts
 import { datePlugin } from '@suerg/test-kit';
 const kit = createKit(datePlugin(new Date('2024-02-01T00:00:00Z')));
 ```
 
-## Generic page wiring
+## Router Plugin
+
+Use with a configured environment via `setupTestKit({ router: { getRouter } })`.
+
+Web (Next.js):
 
 ```ts
-import { pagePlugin } from '@suerg/test-kit';
-const createPage = ({ screen, user }: { screen: any; user: any }) => ({
-    clickSave: async () => user.click(screen.getByText('Save')),
-});
-const kit = createKit(pagePlugin(createPage));
-await kit.clickSave();
+import { routerPlugin } from '@suerg/test-kit';
+const kit = createKit(routerPlugin({ type: 'next' }));
+kit.router.getLocation();
+await kit.router.navigate({ pathname: '/users', query: { q: 'joe' } });
 ```
 
-## State helpers (stubState)
+React Native (React Navigation):
+
+Two options:
+
+1. Use a configured router environment (preferred):
 
 ```ts
-import { createKit, statePlugin } from "@suerg/test-kit";
-
-const kit = createKit(statePlugin());
-
-// Path-based
-kit.state.stubState("auth.user.id", "1");
-
-// Object-based
-kit.state.stubState({ auth: { user: { id: "1" } } });
-
-const ui = kit.state.renderWithState(<App />);
+import { routerPlugin } from '@suerg/test-kit';
+const kit = createKitNative(routerPlugin({ type: 'react-navigation' }));
+await kit.router.navigate('Details', { id: '1' });
 ```
 
-## Typing your Redux RootState for better DX
-
-The kit exposes a minimal Redux environment so you can use your real store in tests. To get full type safety in helpers that reference your Redux state, augment the `test-kit` module to provide your app's `RootState` shape by extending `TestKitReduxState`.
-
-Example (in a typical Redux app):
+1. Or pass an explicit adapter built from a `NavigationContainer` ref:
 
 ```ts
-// types/test-kit.d.ts (or any *.d.ts included by your tsconfig)
+import { routerPlugin, createReactNavigationAdapter } from '@suerg/test-kit';
+const adapter = createReactNavigationAdapter(navigationRef.current);
+const kit = createKitNative(routerPlugin(adapter));
+await kit.router.navigate('Details', { id: '1' });
+```
+
+## Typing your Redux RootState (recommended)
+
+Augment the module so helpers are typed against your real `RootState`.
+
+```ts
+// types/test-kit.d.ts
 import type rootReducer from '@/redux/rootReducer';
-
-// Derive your app RootState
 export type RootState = ReturnType<typeof rootReducer>;
-
-// Augment test-kit with your RootState so helpers can use it
 declare module '@suerg/test-kit' {
     interface TestKitReduxState extends RootState {}
 }
 ```
 
-Then, in your Jest setup, pass a store factory that produces that `RootState`:
+## Writing integration tests
 
-```ts
-// jest.setup.ts
-import { setupTestKit } from '@suerg/test-kit';
-import { configureStore } from '@reduxjs/toolkit';
-import rootReducer from '@/redux/rootReducer';
-
-setupTestKit({
-    makeStore: (preloaded) =>
-        configureStore({ reducer: rootReducer, preloadedState: preloaded }),
-});
-```
-
-With this in place, `kit.state.stubState(...)` and any helpers that read the store will be properly typed against your actual `RootState`.
+- Use `statePlugin().renderWithState(ui)` to render your real component under real providers.
+- Drive user behavior via `kit.flow.act` and interactions helpers instead of manual `act()` and timers.
+- Mock APIs with `kit.api` instead of ad-hoc jest mocks; assert calls with `expectCalledTimes`.
+- For router-aware components, prefer `routerPlugin` and assert via `kit.router.getLocation()`.

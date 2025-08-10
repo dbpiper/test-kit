@@ -17,21 +17,23 @@ export type SetupTestKitOptions<S> = {
 };
 
 export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
-    if (typeof window !== 'undefined') {
-        const windowWithMaybeStore = window as unknown as {
-            store?: {
-                getState: () => unknown;
-                dispatch: (...args: unknown[]) => unknown;
-                subscribe: (listener: () => void) => () => void;
-            };
-        };
-        if (!windowWithMaybeStore.store) {
-            windowWithMaybeStore.store = {
-                getState: () => ({}),
-                dispatch: () => undefined,
-                subscribe: () => () => undefined,
-            };
-        }
+    const globalScope = globalThis as unknown as {
+        window?: { store?: unknown };
+        store?: unknown;
+    };
+    if (globalScope.window && !globalScope.window.store) {
+        globalScope.window.store = {
+            getState: () => ({}),
+            dispatch: () => undefined,
+            subscribe: () => () => undefined,
+        } as unknown;
+    }
+    if (!globalScope.window && !globalScope.store) {
+        globalScope.store = {
+            getState: () => ({}),
+            dispatch: () => undefined,
+            subscribe: () => () => undefined,
+        } as unknown;
     }
 
     const env: ReduxEnvironment<S> = {

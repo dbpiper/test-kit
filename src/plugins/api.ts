@@ -69,14 +69,21 @@ export type ApiHelpers = {
 export const apiPlugin = (config: ApiConfig = {}) => {
     let originalXHR: typeof XMLHttpRequest;
     let originalFetch: typeof fetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let originalAxiosAdapter: any;
 
     return definePlugin<'api', ApiHelpers>('api', {
         key: Symbol('api'),
         setup() {
             const { debug = false } = config;
 
-            originalXHR = window.XMLHttpRequest;
-            originalFetch = window.fetch;
+            originalXHR = (
+                globalThis as unknown as {
+                    XMLHttpRequest: typeof XMLHttpRequest;
+                }
+            ).XMLHttpRequest;
+            originalFetch = (globalThis as unknown as { fetch: typeof fetch })
+                .fetch;
 
             const calls: ApiCallRecord[] = [];
             const abortedCalls: {
@@ -90,7 +97,30 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             const active = new Set<number>();
             let idleResolvers: Array<() => void> = [];
 
-            const callEmitter = new EventTarget();
+            // Minimal event emitter to avoid DOM EventTarget/CustomEvent in RN
+            const listeners: Record<
+                string,
+                Array<(detail: unknown) => void>
+            > = {};
+            const on = (
+                event: 'call' | 'abort',
+                fn: (detail: unknown) => void
+            ) => {
+                (listeners[event] ||= []).push(fn);
+                return () => {
+                    const arr = listeners[event];
+                    if (!arr) {
+                        return;
+                    }
+                    const idx = arr.indexOf(fn);
+                    if (idx >= 0) {
+                        arr.splice(idx, 1);
+                    }
+                };
+            };
+            const emit = (event: 'call' | 'abort', detail: unknown) => {
+                (listeners[event] || []).forEach((fn) => fn(detail));
+            };
 
             function log(...args: unknown[]) {
                 if (debug) {
@@ -101,9 +131,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
             function recordCall(apiCallRecord: ApiCallRecord) {
                 calls.push(apiCallRecord);
-                callEmitter.dispatchEvent(
-                    new CustomEvent('call', { detail: apiCallRecord }),
-                );
+                emit('call', apiCallRecord);
             }
 
             function recordAbort(abortRecord: {
@@ -112,9 +140,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 timestamp: number;
             }) {
                 abortedCalls.push(abortRecord);
-                callEmitter.dispatchEvent(
-                    new CustomEvent('abort', { detail: abortRecord }),
-                );
+                emit('abort', abortRecord);
             }
 
             function startRequest(): number {
@@ -160,7 +186,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     remainingUses: 1,
                 });
                 log(
-                    `installHang completed, mockRoutes.length=${mockRoutes.length}`,
+                    `installHang completed, mockRoutes.length=${mockRoutes.length}`
                 );
             }
 
@@ -169,7 +195,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 method: HttpMethod,
                 path: string,
                 times: number,
-                timeoutMs = 1000,
+                timeoutMs = 1000
             ) {
                 const bucket = eventName === 'call' ? calls : abortedCalls;
                 const wantPath = path.startsWith('/') ? path : `/${path}`;
@@ -193,23 +219,24 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         // eslint-disable-next-line no-await-in-loop
                         await Promise.race([
                             new Promise<void>((resolve) => {
-                                callEmitter.addEventListener(
-                                    eventName,
-                                    () => resolve(),
-                                    {
-                                        once: true,
-                                    },
-                                );
+                                const off = on(eventName, () => {
+                                    off();
+                                    resolve();
+                                });
                             }),
-                            new Promise<never>((resolve, reject) => {
-                                setTimeout(
+                            new Promise<never>((_resolve, reject) => {
+                                (
+                                    globalThis as unknown as {
+                                        setTimeout: typeof setTimeout;
+                                    }
+                                ).setTimeout(
                                     () =>
                                         reject(
                                             new Error(
-                                                `timed out waiting for ${eventName}`,
-                                            ),
+                                                `timed out waiting for ${eventName}`
+                                            )
                                         ),
-                                    deadline - Date.now(),
+                                    deadline - Date.now()
                                 );
                             }),
                         ]);
@@ -227,12 +254,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     `Timed out after ${timeoutMs}ms waiting for ${times} '${eventName}' events of ${method} ${path}.\n` +
                         `Saw ${seen.length}:\n${seen
                             .map((record) => JSON.stringify(record))
-                            .join('\n')}`,
+                            .join('\n')}`
                 );
             }
 
             function matchRoute(method: HttpMethod, fullUrl: string) {
-                const url = new URL(fullUrl, window.location.origin);
+                const baseOrigin =
+                    (
+                        globalThis as unknown as {
+                            location?: { origin?: string };
+                        }
+                    ).location?.origin ?? 'http://localhost';
+                const url = new URL(fullUrl, baseOrigin);
                 const actual = url.pathname;
                 const actualParams = url.searchParams;
 
@@ -256,7 +289,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
                     const maybeRaw = route.rawPath;
                     const stubFull = axios.getUri({
-                        baseURL: window.location.origin,
+                        baseURL: baseOrigin,
                         url: maybeRaw,
                     });
                     const stubUrl = new URL(stubFull);
@@ -266,7 +299,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         if (stubUrl.search) {
                             let paramsMatch = true;
                             for (const [key, value] of Array.from(
-                                stubUrl.searchParams.entries(),
+                                stubUrl.searchParams.entries()
                             )) {
                                 if (!actualParams.getAll(key).includes(value)) {
                                     paramsMatch = false;
@@ -280,7 +313,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
                         const mount = actual.slice(
                             0,
-                            actual.length - stubPath.length,
+                            actual.length - stubPath.length
                         );
                         return { route, stubPath, mount };
                     }
@@ -299,7 +332,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 onabort: (() => void) | null = null;
                 private method!: string;
                 private url!: string;
-                private timerId?: number;
+                private timerId?: ReturnType<typeof setTimeout>;
                 private headers: Record<string, string> = {};
                 private body: unknown;
                 private matched?: {
@@ -326,7 +359,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
                     const match = matchRoute(
                         this.method as HttpMethod,
-                        this.url,
+                        this.url
                     );
                     if (!match) {
                         this.readyState = FakeXHR.DONE;
@@ -366,7 +399,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                             > = {};
                             new URL(
                                 this.url,
-                                window.location.origin,
+                                (
+                                    globalThis as unknown as {
+                                        location?: { origin?: string };
+                                    }
+                                ).location?.origin ?? 'http://localhost'
                             ).searchParams.forEach((value, key) => {
                                 if (!queryParams[key]) {
                                     queryParams[key] = value;
@@ -386,7 +423,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     });
 
                     if (match.route.status === 0) {
-                        this.timerId = window.setTimeout(() => {
+                        this.timerId = (
+                            globalThis as unknown as {
+                                setTimeout: typeof setTimeout;
+                            }
+                        ).setTimeout(() => {
                             this.timerId = undefined;
                             this.readyState = FakeXHR.DONE;
                             this.status = 0;
@@ -397,8 +438,14 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
 
                     const finish = (responseBody: unknown) => {
-                        if (this.aborted) {return;}
-                        this.timerId = window.setTimeout(() => {
+                        if (this.aborted) {
+                            return;
+                        }
+                        this.timerId = (
+                            globalThis as unknown as {
+                                setTimeout: typeof setTimeout;
+                            }
+                        ).setTimeout(() => {
                             this.timerId = undefined;
                             this.readyState = FakeXHR.DONE;
                             this.status = match.route.status;
@@ -414,8 +461,14 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (match.route.body as Promise<unknown>)
                             .then((resolved) => finish(resolved))
                             .catch(() => {
-                                if (this.aborted) {return;}
-                                this.timerId = window.setTimeout(() => {
+                                if (this.aborted) {
+                                    return;
+                                }
+                                this.timerId = (
+                                    globalThis as unknown as {
+                                        setTimeout: typeof setTimeout;
+                                    }
+                                ).setTimeout(() => {
                                     this.readyState = FakeXHR.DONE;
                                     this.status = 0;
                                     this.onreadystatechange?.();
@@ -432,7 +485,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     log('[API Plugin] matched:', this.matched);
                     this.aborted = true;
                     if (this.timerId != null) {
-                        clearTimeout(this.timerId);
+                        (
+                            globalThis as unknown as {
+                                clearTimeout: typeof clearTimeout;
+                            }
+                        ).clearTimeout(this.timerId);
                         this.timerId = undefined;
                     }
                     const stubPath =
@@ -440,8 +497,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     log(
                         `[API Plugin] Recording abort with path: ${stubPath.replace(
                             /\/$/,
-                            '',
-                        )}`,
+                            ''
+                        )}`
                     );
                     recordAbort({
                         method: this.method as HttpMethod,
@@ -463,9 +520,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 static DONE = 4;
             }
 
-            window.fetch = async (
+            const gFetch = async (
                 input: RequestInfo | URL,
-                init?: RequestInit,
+                init?: RequestInit
             ) => {
                 const url =
                     typeof input === 'string'
@@ -477,12 +534,28 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     init?.method || 'GET'
                 ).toUpperCase() as HttpMethod;
                 const match = matchRoute(method, url);
+                const ResponseCtor = (
+                    globalThis as unknown as { Response?: typeof Response }
+                ).Response;
+                const makeResponse = (
+                    bodyText: string,
+                    status: number,
+                    headers?: Record<string, string>
+                ) =>
+                    ResponseCtor
+                        ? new ResponseCtor(bodyText, { status, headers })
+                        : ({
+                              ok: status >= 200 && status < 300,
+                              status,
+                              json: async () => JSON.parse(bodyText),
+                              text: async () => bodyText,
+                          } as unknown as Response);
+
                 if (!match) {
                     return Promise.resolve(
-                        new Response(JSON.stringify({ data: {} }), {
-                            status: 200,
-                            headers: { 'Content-Type': 'application/json' },
-                        }),
+                        makeResponse(JSON.stringify({ data: {} }), 200, {
+                            'Content-Type': 'application/json',
+                        })
                     );
                 }
 
@@ -499,7 +572,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                   (init.headers as Headers).forEach(
                                       (value, key) => {
                                           obj[key] = String(value);
-                                      },
+                                      }
                                   );
                                   return obj;
                               })()
@@ -513,7 +586,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                             {};
                         new URL(
                             url,
-                            window.location.origin,
+                            (
+                                globalThis as unknown as {
+                                    location?: { origin?: string };
+                                }
+                            ).location?.origin ?? 'http://localhost'
                         ).searchParams.forEach((value, key) => {
                             if (!queryParams[key]) {
                                 queryParams[key] = value;
@@ -533,7 +610,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 });
 
                 log(
-                    `Mock found for ${method} ${url} -> ${match.route.rawPath}`,
+                    `Mock found for ${method} ${url} -> ${match.route.rawPath}`
                 );
 
                 if (match.route.status === 0) {
@@ -545,27 +622,28 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     const bodyText = JSON.stringify(match.route.body);
                     endRequest(requestId);
                     return Promise.resolve(
-                        new Response(bodyText, {
-                            status: match.route.status,
-                            headers: { 'Content-Type': 'application/json' },
-                        }),
+                        makeResponse(bodyText, match.route.status, {
+                            'Content-Type': 'application/json',
+                        })
                     );
                 }
 
                 return new Promise<Response>((resolve, reject) => {
-                    let tid: number;
+                    let tid: ReturnType<typeof setTimeout>;
                     let aborted = false;
                     const signal = init?.signal;
 
                     const onAbort = () => {
                         log(`Fetch abort called for ${method} ${url}`);
                         log('[API Plugin] match:', match);
-                        if (aborted) {return;}
+                        if (aborted) {
+                            return;
+                        }
                         aborted = true;
                         clearTimeout(tid);
                         const abortPath = match.stubPath.replace(/\/$/, '');
                         log(
-                            `[API Plugin] Recording fetch abort with path: ${abortPath}`,
+                            `[API Plugin] Recording fetch abort with path: ${abortPath}`
                         );
                         recordAbort({
                             method,
@@ -574,7 +652,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         });
                         log('[API Plugin] Current abortedCalls:', abortedCalls);
                         endRequest(requestId);
-                        reject(new DOMException('Aborted', 'AbortError'));
+                        const err = new Error('Aborted');
+                        (err as { name?: string }).name = 'AbortError';
+                        reject(err);
                     };
 
                     if (signal) {
@@ -586,17 +666,22 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
 
                     const sendResponse = (responseBody: unknown) => {
-                        if (aborted) {return;}
-                        tid = window.setTimeout(() => {
-                            if (aborted) {return;}
+                        if (aborted) {
+                            return;
+                        }
+                        tid = (
+                            globalThis as unknown as {
+                                setTimeout: typeof setTimeout;
+                            }
+                        ).setTimeout(() => {
+                            if (aborted) {
+                                return;
+                            }
                             const bodyText = JSON.stringify(responseBody);
                             resolve(
-                                new Response(bodyText, {
-                                    status: match.route.status,
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                    },
-                                }),
+                                makeResponse(bodyText, match.route.status, {
+                                    'Content-Type': 'application/json',
+                                })
                             );
                             signal?.removeEventListener('abort', onAbort);
                         }, 0);
@@ -606,7 +691,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (match.route.body as Promise<unknown>)
                             .then((resolved) => sendResponse(resolved))
                             .catch(() => {
-                                if (aborted) {return;}
+                                if (aborted) {
+                                    return;
+                                }
                                 reject(new Error('Network Error'));
                             });
                     }
@@ -615,15 +702,80 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 });
             };
 
+            // Force axios to use fetch/XHR adapter so our mocks intercept in Node/Jest
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            originalAxiosAdapter = (axios as any).defaults?.adapter;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (axios as any).defaults = (axios as any).defaults || {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (axios as any).defaults.adapter = async (config: any) => {
+                const url = axios.getUri(config);
+                const method = (config.method || 'GET').toUpperCase();
+                const headers = config.headers || {};
+                const body = config.data;
+                try {
+                    const res = await gFetch(url, { method, headers, body });
+                    const text = await res.text();
+                    const data = (() => {
+                        try {
+                            return JSON.parse(text);
+                        } catch {
+                            return text;
+                        }
+                    })();
+                    // Reject for non-2xx like axios normally does
+                    if (res.status < 200 || res.status >= 300) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const err: any = new Error(
+                            `Request failed with status code ${res.status}`
+                        );
+                        err.response = {
+                            data,
+                            status: res.status,
+                            statusText: String(res.status),
+                            headers: {},
+                            config,
+                        };
+                        err.request = { status: res.status };
+                        throw err;
+                    }
+                    return {
+                        data,
+                        status: res.status,
+                        statusText: String(res.status),
+                        headers: {},
+                        config,
+                        request: { status: res.status },
+                    };
+                } catch (error) {
+                    // Normalize network errors to include request.status = 0
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (!(error as any).response) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const err: any =
+                            error instanceof Error
+                                ? error
+                                : new Error('Network Error');
+                        err.request = { status: 0 };
+                        throw err;
+                    }
+                    throw error;
+                }
+            };
+
             // Override XMLHttpRequest
-            window.XMLHttpRequest = FakeXHR as unknown as typeof XMLHttpRequest;
+            (
+                globalThis as unknown as {
+                    XMLHttpRequest: typeof XMLHttpRequest;
+                }
+            ).XMLHttpRequest = FakeXHR as unknown as typeof XMLHttpRequest;
 
             function install(
                 method: HttpMethod,
                 rawPath: string,
                 body: unknown,
                 status = 200,
-                repeat = 1,
+                repeat = 1
             ) {
                 log(`Installing mock for ${method} ${rawPath}`);
                 mockRoutes.push({
@@ -640,25 +792,25 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number,
+                repeat?: number
             ) => install('GET', path, body, status ?? 200, repeat ?? 1);
             const onPost = (
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number,
+                repeat?: number
             ) => install('POST', path, body, status ?? 200, repeat ?? 1);
             const onPut = (
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number,
+                repeat?: number
             ) => install('PUT', path, body, status ?? 200, repeat ?? 1);
             const onDelete = (
                 path: string,
                 body: unknown,
                 status?: number,
-                repeat?: number,
+                repeat?: number
             ) => install('DELETE', path, body, status ?? 200, repeat ?? 1);
 
             const chaos = {
@@ -686,18 +838,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         (!method || call.method === method) &&
                         (!path ||
                             call.path ===
-                                (path.startsWith('/') ? path : `/${path}`)),
+                                (path.startsWith('/') ? path : `/${path}`))
                 );
 
             const expectCalledTimes = (
                 method: HttpMethod,
                 path: string,
-                times: number,
+                times: number
             ) => expectEventTimes('call', method, path, times);
             const expectAbortedTimes = (
                 method: HttpMethod,
                 path: string,
-                times: number,
+                times: number
             ) => expectEventTimes('abort', method, path, times);
 
             const clear = () => {
@@ -711,13 +863,13 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             const expectNoPending = async () => {
                 await waitForIdle();
                 const pending = mockRoutes.filter(
-                    (route) => route.remainingUses > 0,
+                    (route) => route.remainingUses > 0
                 );
                 if (pending.length) {
                     throw new Error(
                         `Mocks never called: ${pending
                             .map((route) => `${route.method} ${route.rawPath}`)
-                            .join(', ')}`,
+                            .join(', ')}`
                     );
                 }
             };
@@ -739,8 +891,18 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             };
         },
         teardown() {
-            window.XMLHttpRequest = originalXHR;
-            window.fetch = originalFetch;
+            (
+                globalThis as unknown as {
+                    XMLHttpRequest: typeof XMLHttpRequest;
+                }
+            ).XMLHttpRequest = originalXHR;
+            (globalThis as unknown as { fetch: typeof fetch }).fetch =
+                originalFetch;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if ((axios as any).defaults) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (axios as any).defaults.adapter = originalAxiosAdapter;
+            }
         },
     });
 };

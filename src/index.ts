@@ -1,11 +1,19 @@
-// Ensure a minimal window.store exists as early as possible so consumer axios
-// interceptors that read window.store don't crash before tests render.
+// Ensure a minimal store exists on window or globalThis so early axios
+// interceptors that read it don't crash before tests render.
 (() => {
-    if (
-        typeof window !== 'undefined' &&
-        !(window as unknown as { store?: unknown }).store
-    ) {
-        (window as unknown as { store: unknown }).store = {
+    const globalScope = globalThis as unknown as {
+        window?: { store?: unknown };
+        store?: unknown;
+    };
+    if (globalScope.window && !globalScope.window.store) {
+        globalScope.window.store = {
+            getState: () => ({}),
+            dispatch: () => {},
+            subscribe: () => () => {},
+        } as unknown;
+    }
+    if (!globalScope.window && !globalScope.store) {
+        globalScope.store = {
             getState: () => ({}),
             dispatch: () => {},
             subscribe: () => () => {},
@@ -13,7 +21,8 @@
     }
 })();
 
-export * from './types';
+export type * from './types/core';
+export type * from './types/web';
 export * from './helpers/definePlugin';
 export { createKit } from './createKit';
 export { makeKitBuilder } from './kitBuilder';

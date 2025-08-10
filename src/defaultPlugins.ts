@@ -1,4 +1,4 @@
-import type { MergePlugins } from './types';
+import type { MergePlugins } from './types/core';
 import { flowPlugin } from './plugins/flow';
 import { apiPlugin } from './plugins/api';
 import { interactionsPlugin } from './plugins/interactionsPlugin';

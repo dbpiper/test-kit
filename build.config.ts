@@ -1,7 +1,7 @@
 import { defineBuildConfig } from 'unbuild';
 
 export default defineBuildConfig({
-    entries: ['src/index'],
+    entries: ['src/index', 'src/index.native'],
     outDir: 'dist',
     clean: true,
     declaration: true,
@@ -15,6 +15,7 @@ export default defineBuildConfig({
         'react',
         'react-dom',
         '@testing-library/react',
+        '@testing-library/react-native',
         '@testing-library/user-event',
         'react-redux',
         '@reduxjs/toolkit',

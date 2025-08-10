@@ -1,8 +1,9 @@
 {
     "name": "@suerg/test-kit",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "private": false,
     "type": "module",
+    "react-native": "dist/index.native.cjs",
     "main": "dist/index.cjs",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
@@ -16,6 +17,11 @@
     },
     "exports": {
         ".": {
+            "react-native": {
+                "types": "./dist/index.native.d.ts",
+                "import": "./dist/index.native.mjs",
+                "require": "./dist/index.native.cjs"
+            },
             "types": "./dist/index.d.ts",
             "import": "./dist/index.mjs",
             "require": "./dist/index.cjs"
@@ -28,7 +34,7 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "unbuild",
+        "build": "unbuild && node --enable-source-maps scripts/postbuild.mjs",
         "prepack": "npm run build",
         "build:yalc": "npm run build && npx yalc publish",
         "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\"",
@@ -37,11 +43,12 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "release": "npm publish --access public",
-        "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
+        "prepublishOnly": "npm run build"
     },
     "peerDependencies": {
         "@reduxjs/toolkit": ">=1.9.0",
         "@testing-library/react": ">=14.0.0",
+        "@testing-library/react-native": ">=12.0.0",
         "@testing-library/user-event": ">=13.0.0",
         "@types/jest": ">=29",
         "@types/react": ">=18",
@@ -54,6 +61,9 @@
         "react-dom": {
             "optional": true
         },
+        "@testing-library/react-native": {
+            "optional": true
+        },
         "@types/jest": {
             "optional": true
         }
@@ -63,18 +73,18 @@
         "deepmerge": "^4.3.1"
     },
     "devDependencies": {
-        "eslint-import-resolver-node": "^0.3.9",
-        "eslint-import-resolver-typescript": "^3.6.1",
-        "prettier": "^3.6.2",
         "@reduxjs/toolkit": "^2.8.2",
         "@testing-library/react": "^16.3.0",
+        "@testing-library/react-native": "^12.9.0",
         "@testing-library/user-event": "^14.6.1",
         "@types/jest": "^30.0.0",
-        "@types/react": "^18.3.1",
+        "@types/react": "^19.1.9",
         "@typescript-eslint/eslint-plugin": "^8.38.0",
         "@typescript-eslint/parser": "^8.38.0",
         "eslint": "^8.57.1",
         "eslint-config-prettier": "^10.1.0",
+        "eslint-import-resolver-node": "^0.3.9",
+        "eslint-import-resolver-typescript": "^3.6.1",
         "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-jsx-a11y": "^6.10.2",
         "eslint-plugin-prettier": "^5.5.4",
@@ -82,9 +92,11 @@
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^5.2.0",
         "nodemon": "^3.1.10",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
+        "prettier": "^3.6.2",
+        "react": "^19.1.1",
+        "react-dom": "^19.1.1",
         "react-redux": "^9.2.0",
+        "react-test-renderer": "^19.1.1",
         "redux": "^5.0.1",
         "typescript": "^5.9.2",
         "unbuild": "^2.0.0",
