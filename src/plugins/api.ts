@@ -237,6 +237,21 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 log(`waitForIdle waiting, active.size=${shared.active.size}`);
                 return new Promise((resolve) => {
                     shared.idleResolvers.push(resolve);
+                    // Failsafe: avoid indefinite hangs if a request leaks
+                    (
+                        globalThis as unknown as {
+                            setTimeout: typeof setTimeout;
+                        }
+                    ).setTimeout(() => {
+                        if (shared.active.size > 0) {
+                            log(
+                                'waitForIdle timeout reached; force-resolving idle and clearing active requests'
+                            );
+                            shared.active.clear();
+                            const resolvers = shared.idleResolvers.splice(0);
+                            resolvers.forEach((resolver) => resolver());
+                        }
+                    }, 5000);
                 });
             }
 
@@ -1279,8 +1294,11 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 mockRoutes.length = 0;
                 abortedCalls.length = 0;
                 shared.nextRequestId = 1;
-                shared.active.clear();
-                shared.idleResolvers = [];
+                if (shared.active.size > 0) {
+                    shared.active.clear();
+                    const resolvers = shared.idleResolvers.splice(0);
+                    resolvers.forEach((r) => r());
+                }
             };
 
             const getAbortedCalls = () => abortedCalls;
