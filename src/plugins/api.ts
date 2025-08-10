@@ -369,10 +369,20 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     if (actual.endsWith(stubPath)) {
                         if (stubUrl.search) {
                             let paramsMatch = true;
+                            // Build a case-insensitive map of actual query params
+                            const actualLower: Record<string, string[]> = {};
+                            for (const [key, value] of Array.from(
+                                actualParams.entries()
+                            )) {
+                                const lk = key.toLowerCase();
+                                (actualLower[lk] ||= []).push(value);
+                            }
                             for (const [key, value] of Array.from(
                                 stubUrl.searchParams.entries()
                             )) {
-                                if (!actualParams.getAll(key).includes(value)) {
+                                const lk = key.toLowerCase();
+                                const vals = actualLower[lk] || [];
+                                if (!vals.includes(value)) {
                                     paramsMatch = false;
                                     break;
                                 }
@@ -433,6 +443,47 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         this.url
                     );
                     if (!match) {
+                        // Record unmatched calls too, for introspection (path/query)
+                        try {
+                            const urlObj = new URL(this.url);
+                            recordCall({
+                                method: this.method as HttpMethod,
+                                base: urlObj.origin,
+                                path: urlObj.pathname.replace(/\/$/, ''),
+                                headers: this.headers,
+                                body: this.body,
+                                timestamp: Date.now(),
+                                query: (() => {
+                                    const queryParams: Record<
+                                        string,
+                                        string | string[]
+                                    > = {};
+                                    urlObj.searchParams.forEach(
+                                        (value, key) => {
+                                            if (!queryParams[key]) {
+                                                queryParams[key] = value;
+                                            } else if (
+                                                Array.isArray(queryParams[key])
+                                            ) {
+                                                (
+                                                    queryParams[key] as string[]
+                                                ).push(value);
+                                            } else {
+                                                queryParams[key] = [
+                                                    queryParams[key] as string,
+                                                    value,
+                                                ];
+                                            }
+                                        }
+                                    );
+                                    return Object.keys(queryParams).length
+                                        ? queryParams
+                                        : undefined;
+                                })(),
+                            });
+                        } catch {
+                            /* ignore parse issues */
+                        }
                         this.readyState = FakeXHR.DONE;
                         this.status = 200;
                         const bodyText = JSON.stringify({ data: {} });
@@ -623,6 +674,62 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                           } as unknown as Response);
 
                 if (!match) {
+                    // Record unmatched calls as well, so tests can assert query/path
+                    try {
+                        const urlObj = new URL(url);
+                        recordCall({
+                            method,
+                            base: urlObj.origin,
+                            path: urlObj.pathname.replace(/\/$/, ''),
+                            headers:
+                                init?.headers instanceof Headers
+                                    ? (() => {
+                                          const obj: Record<string, string> =
+                                              {};
+                                          (init.headers as Headers).forEach(
+                                              (value, key) => {
+                                                  obj[key] = String(value);
+                                              }
+                                          );
+                                          return obj;
+                                      })()
+                                    : Array.isArray(init?.headers)
+                                      ? Object.fromEntries(init.headers)
+                                      : (init?.headers as Record<
+                                            string,
+                                            string
+                                        >) || {},
+                            body: init?.body,
+                            timestamp: Date.now(),
+                            query: (() => {
+                                const queryParams: Record<
+                                    string,
+                                    string | string[]
+                                > = {};
+                                urlObj.searchParams.forEach((value, key) => {
+                                    if (!queryParams[key]) {
+                                        queryParams[key] = value;
+                                    } else if (
+                                        Array.isArray(queryParams[key])
+                                    ) {
+                                        (queryParams[key] as string[]).push(
+                                            value
+                                        );
+                                    } else {
+                                        queryParams[key] = [
+                                            queryParams[key] as string,
+                                            value,
+                                        ];
+                                    }
+                                });
+                                return Object.keys(queryParams).length
+                                    ? queryParams
+                                    : undefined;
+                            })(),
+                        });
+                    } catch {
+                        /* ignore */
+                    }
                     return Promise.resolve(
                         makeResponse(JSON.stringify({ data: {} }), 200, {
                             'Content-Type': 'application/json',

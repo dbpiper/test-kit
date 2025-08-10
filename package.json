@@ -1,6 +1,6 @@
 {
     "name": "@suerg/test-kit",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "private": false,
     "type": "module",
     "react-native": "dist/index.native.cjs",

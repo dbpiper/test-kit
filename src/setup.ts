@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 import type { ComponentType, ReactNode } from 'react';
 
 import {
@@ -14,9 +15,66 @@ export type SetupTestKitOptions<S> = {
     contextProviders?: ComponentType<{ children?: ReactNode }>[];
     middlewares?: MinimalMiddleware[];
     router?: RouterEnvironment;
+    // Optional: force web or native boot. If omitted, auto-detects.
+    mode?: 'web' | 'native';
 };
 
 export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
+    // Initialize test-kit default plugins early so global interceptors
+    // (fetch/XMLHttpRequest/axios adapter) are installed before any app
+    // code imports axios in tests. Idempotent across multiple calls.
+    const bootState = globalThis as unknown as { __testKitBoot?: unknown };
+    if (!bootState.__testKitBoot) {
+        // Choose web or native without importing platform libs at module scope
+        const isNative = (() => {
+            if (options.mode) {
+                return options.mode === 'native';
+            }
+            try {
+                // RN preset sets navigator.product = 'ReactNative'
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const nav = (globalThis as any).navigator;
+                const prod =
+                    typeof nav?.product === 'string' ? nav.product : '';
+                return prod.toLowerCase() === 'reactnative';
+            } catch {
+                return false;
+            }
+        })();
+
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const req: any = (0, eval)('require');
+            if (isNative) {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const { createKitNative } = req('./createKitNative');
+                bootState.__testKitBoot = createKitNative();
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const { createKit } = req('./createKit');
+                bootState.__testKitBoot = createKit();
+            }
+        } catch {
+            // Fallback: try dynamic import without blocking
+            if (isNative) {
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises, promise/catch-or-return
+                import('./createKitNative').then((module) => {
+                    if (!bootState.__testKitBoot) {
+                        bootState.__testKitBoot = module.createKitNative();
+                    }
+                });
+            } else {
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises, promise/catch-or-return
+                import('./createKit').then((module) => {
+                    if (!bootState.__testKitBoot) {
+                        bootState.__testKitBoot = module.createKit();
+                    }
+                });
+            }
+        }
+    }
     const globalScope = globalThis as unknown as {
         window?: { store?: unknown };
         store?: unknown;
