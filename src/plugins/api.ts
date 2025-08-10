@@ -752,6 +752,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 });
             };
 
+            (globalThis as unknown as { fetch: typeof fetch }).fetch =
+                gFetch as unknown as typeof fetch;
+
             // Force axios (if available) to use
             // fetch/XHR adapter so our mocks intercept in Node/Jest
             try {
