@@ -8,6 +8,7 @@ import {
     type ReduxEnvironment,
 } from './redux/config';
 import { configureRouter, type RouterEnvironment } from './router/config';
+import { apiPlugin } from './plugins/api';
 
 export type SetupTestKitOptions<S> = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,7 +24,16 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
     // Initialize test-kit default plugins early so global interceptors
     // (fetch/XMLHttpRequest/axios adapter) are installed before any app
     // code imports axios in tests. Idempotent across multiple calls.
-    const bootState = globalThis as unknown as { __testKitBoot?: unknown };
+    const bootState = globalThis as unknown as {
+        __testKitBoot?: unknown;
+        __testKitApiInstalled?: boolean;
+    };
+    if (!bootState.__testKitApiInstalled) {
+        // Install API interceptors synchronously; this does not depend on platform
+        // @ts-expect-error ignore type error
+        apiPlugin().setup({} as unknown as Record<string, unknown>);
+        bootState.__testKitApiInstalled = true;
+    }
     if (!bootState.__testKitBoot) {
         // Choose web or native without importing platform libs at module scope
         const isNative = (() => {
@@ -43,36 +53,19 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
         })();
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const req: any = (0, eval)('require');
             if (isNative) {
-                // eslint-disable-next-line @typescript-eslint/no-var-requires
-                const { createKitNative } = req('./createKitNative');
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                const { createKitNative } = require('./createKitNative');
                 bootState.__testKitBoot = createKitNative();
             } else {
-                // eslint-disable-next-line @typescript-eslint/no-var-requires
-                const { createKit } = req('./createKit');
+                // eslint-disable-next-line max-len
+                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                const { createKit } = require('./createKit');
                 bootState.__testKitBoot = createKit();
             }
         } catch {
-            // Fallback: try dynamic import without blocking
-            if (isNative) {
-                // eslint-disable-next-line max-len
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises, promise/catch-or-return
-                import('./createKitNative').then((module) => {
-                    if (!bootState.__testKitBoot) {
-                        bootState.__testKitBoot = module.createKitNative();
-                    }
-                });
-            } else {
-                // eslint-disable-next-line max-len
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises, promise/catch-or-return
-                import('./createKit').then((module) => {
-                    if (!bootState.__testKitBoot) {
-                        bootState.__testKitBoot = module.createKit();
-                    }
-                });
-            }
+            // Swallow; API interceptors are already installed
         }
     }
     const globalScope = globalThis as unknown as {
