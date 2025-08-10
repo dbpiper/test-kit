@@ -1297,7 +1297,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 if (shared.active.size > 0) {
                     shared.active.clear();
                     const resolvers = shared.idleResolvers.splice(0);
-                    resolvers.forEach((r) => r());
+                    resolvers.forEach((resolver) => resolver());
                 }
             };
 
