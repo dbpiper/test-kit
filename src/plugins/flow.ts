@@ -13,11 +13,22 @@ export type FlowHelpers = {
 export const flowPlugin = definePlugin<'flow', FlowHelpers>('flow', {
     key: Symbol('flow'),
     setup(ctx) {
+        const isWebUser = (candidate: unknown): candidate is UserEvent =>
+            !!candidate &&
+            typeof (candidate as { click?: unknown }).click === 'function' &&
+            typeof (candidate as { keyboard?: unknown }).keyboard ===
+                'function';
         return {
             act: async (fn: (u: UserEvent) => Promise<void>) => {
                 // Wrap the interaction in React Testing Library's act
                 await rtlAct(async () => {
-                    await fn(ctx.user);
+                    const candidateUser = ctx.user;
+                    if (!isWebUser(candidateUser)) {
+                        throw new Error(
+                            'test-kit: expected web userEvent instance'
+                        );
+                    }
+                    await fn(candidateUser);
                 });
                 // Give component libs (e.g., MUI ripples) a microtask to settle
                 await rtlAct(async () => {

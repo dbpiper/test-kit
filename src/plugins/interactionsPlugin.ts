@@ -1,4 +1,5 @@
 import { screen, act } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 
 import type { KitContext } from '../types';
 import { definePlugin } from '../helpers/definePlugin';
@@ -25,6 +26,9 @@ export const interactionsPlugin = definePlugin<
 >('interactions', {
     key: Symbol('interactions'),
     setup(ctx: KitContext) {
+        const isWebUser = (candidate: unknown): candidate is UserEvent =>
+            !!candidate &&
+            typeof (candidate as { click?: unknown }).click === 'function';
         const maybeGetContainer = (ctx as Record<string, unknown>)
             .getContainer as (() => HTMLElement) | undefined;
         const getContainer = maybeGetContainer ?? (() => document.body);
@@ -45,6 +49,9 @@ export const interactionsPlugin = definePlugin<
                     name: label,
                 });
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.click(el);
                 });
             },
@@ -60,18 +67,27 @@ export const interactionsPlugin = definePlugin<
                     });
                 }
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.click(btn);
                 });
             },
             async clickByText(text: string | RegExp) {
                 const el = (ctx.screen as typeof screen).getByText(text);
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.click(el);
                 });
             },
             async clickByTestId(testId: string) {
                 const el = (ctx.screen as typeof screen).getByTestId(testId);
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.click(el);
                 });
             },
@@ -87,12 +103,18 @@ export const interactionsPlugin = definePlugin<
                     );
                 }
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.clear(input);
                     await ctx.user.type(input, text);
                 });
             },
             async selectViaKb(label: string | RegExp) {
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     while (document.activeElement !== getContainer()) {
                         await ctx.user.tab();
                     }
@@ -109,18 +131,27 @@ export const interactionsPlugin = definePlugin<
             },
             async clearSelections() {
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.keyboard('{Escape}');
                 });
             },
             async hoverElement(label: string | RegExp) {
                 const el = (ctx.screen as typeof screen).getByLabelText(label);
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.hover(el);
                 });
             },
             async hoverText(text: string | RegExp) {
                 const el = (ctx.screen as typeof screen).getByText(text);
                 await act(async () => {
+                    if (!isWebUser(ctx.user)) {
+                        throw new Error('test-kit: expected web userEvent instance');
+                    }
                     await ctx.user.hover(el);
                 });
             },

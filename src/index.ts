@@ -1,19 +1,19 @@
 // Ensure a minimal store exists on window or globalThis so early axios
 // interceptors that read it don't crash before tests render.
 (() => {
-    const g = globalThis as unknown as {
+    const globalScope = globalThis as unknown as {
         window?: { store?: unknown };
         store?: unknown;
     };
-    if (g.window && !g.window.store) {
-        g.window.store = {
+    if (globalScope.window && !globalScope.window.store) {
+        globalScope.window.store = {
             getState: () => ({}),
             dispatch: () => {},
             subscribe: () => () => {},
         } as unknown;
     }
-    if (!g.window && !g.store) {
-        g.store = {
+    if (!globalScope.window && !globalScope.store) {
+        globalScope.store = {
             getState: () => ({}),
             dispatch: () => {},
             subscribe: () => () => {},
