@@ -4,4 +4,4 @@
 // }
 // eslint-disable-next-line max-len
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions, @typescript-eslint/no-empty-object-type
-export type TestKitReduxState = Record<string, never>;
+export interface TestKitReduxState {}
