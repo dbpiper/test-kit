@@ -227,6 +227,17 @@ Available as part of defaults (web and native):
 - waitForIdle(), expectNoPending(), clear()
 - getAbortedCalls()
 
+### Debug logging
+
+- Pass a boolean to enable logs programmatically: `apiPlugin({ debug: true })`.
+- Or set the environment variable to a boolean string: `TEST_KIT_API_DEBUG=true`.
+
+Example:
+
+```bash
+cross-env TEST_KIT_API_DEBUG=true npm test
+```
+
 Example:
 
 ```ts
