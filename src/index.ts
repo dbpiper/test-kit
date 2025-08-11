@@ -36,6 +36,7 @@ export * from './plugins/dnd';
 export * from './plugins/interactionsPlugin';
 export * from './plugins/page';
 export * from './plugins/state';
+export type { TestKitReduxState } from './types/redux';
 export { configureRedux } from './redux/config';
 export * from './plugins/router';
 export { setupTestKit } from './setup';

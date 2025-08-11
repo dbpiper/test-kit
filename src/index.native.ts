@@ -12,3 +12,4 @@ export * from './plugins/router';
 export { setupTestKit } from './setup';
 export { configureRedux } from './redux/config';
 export { configureRouter } from './router/config';
+export type { TestKitReduxState } from './types/redux';

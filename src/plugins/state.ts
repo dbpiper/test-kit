@@ -7,6 +7,7 @@ import React, {
 import { Provider } from 'react-redux';
 
 import { getConfiguredRedux, type MinimalStore } from '../redux/config';
+import type { TestKitReduxState } from '../types/redux';
 import { definePlugin } from '../helpers/definePlugin';
 
 type DeepPartial<T> = T extends object
@@ -37,14 +38,16 @@ export type StatePluginOptions<S> = {
     providers?: ComponentType<{ children?: ReactNode }>[];
 };
 
-export function statePlugin<S>(options?: StatePluginOptions<S>) {
+export function statePlugin<S = TestKitReduxState>(
+    options?: StatePluginOptions<S>
+) {
     return definePlugin<'state', StateHelpers<S>>('state', {
         key: STATE_PLUGIN_KEY,
         setup() {
             const env = getConfiguredRedux<S>();
             if (!env) {
                 throw new Error(
-                    'test-kit: Redux is not configured. Call configureRedux({ makeStore }) in your test setup.',
+                    'test-kit: Redux is not configured. Call configureRedux({ makeStore }) in your test setup.'
                 );
             }
 
@@ -62,14 +65,14 @@ export function statePlugin<S>(options?: StatePluginOptions<S>) {
                 patch = deepmerge(patch, patchUpdate);
             };
             const withProviders = (
-                providers: ComponentType<{ children?: ReactNode }>[],
+                providers: ComponentType<{ children?: ReactNode }>[]
             ) => {
                 extraProviders = extraProviders.concat(providers);
             };
 
             const stubState = (
                 pathOrPatch: string | DeepPartial<S>,
-                val?: unknown,
+                val?: unknown
             ) => {
                 if (typeof pathOrPatch === 'string') {
                     const patchObj: Record<string, unknown> = {};
@@ -91,7 +94,7 @@ export function statePlugin<S>(options?: StatePluginOptions<S>) {
                                 acc[key] = next;
                                 return next;
                             },
-                            patchObj,
+                            patchObj
                         );
                     // use built to satisfy linter and ensure structure is constructed
                     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
@@ -109,7 +112,7 @@ export function statePlugin<S>(options?: StatePluginOptions<S>) {
                         const res = fn(initial);
                         return res ? deepmerge(acc, res) : acc;
                     },
-                    {} as Partial<S>,
+                    {} as Partial<S>
                 );
                 return deepmerge(deepmerge(initial, presetPatch), patch) as S;
             };
@@ -131,7 +134,7 @@ export function statePlugin<S>(options?: StatePluginOptions<S>) {
                 let wrapped: ReactElement = React.createElement(
                     Provider as unknown as ComponentType<{ store: unknown }>,
                     { store: storeInstance as unknown },
-                    component,
+                    component
                 );
 
                 extraProviders.forEach((ProviderComponent) => {
@@ -140,7 +143,7 @@ export function statePlugin<S>(options?: StatePluginOptions<S>) {
                             children?: ReactNode;
                         }>,
                         null,
-                        wrapped,
+                        wrapped
                     );
                 });
 
