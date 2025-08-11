@@ -186,15 +186,14 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             };
 
             function log(...args: unknown[]) {
-                const verbose =
-                    debug ||
-                    (
-                        globalThis as unknown as {
-                            process?: {
-                                env?: Record<string, string | undefined>;
-                            };
-                        }
-                    ).process?.env?.TEST_KIT_API_DEBUG === '1';
+                const envVal = (
+                    globalThis as unknown as {
+                        process?: { env?: Record<string, string | undefined> };
+                    }
+                ).process?.env?.TEST_KIT_API_DEBUG;
+                const envDebug =
+                    envVal != null && String(envVal).toLowerCase() === 'true';
+                const verbose = debug || envDebug;
                 if (verbose) {
                     // eslint-disable-next-line no-console
                     console.log('[API Plugin]', ...args);
@@ -976,10 +975,71 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     const headers = config.headers || {};
                     const body = config.data;
                     try {
+                        // Wire axios cancellation into fetch via AbortController
+                        // Prefer config.signal (axios v1), fallback to legacy cancelToken
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const controller: AbortController | undefined = (():
+                            | AbortController
+                            | undefined => {
+                            // If neither signal nor cancelToken provided,
+                            // skip controller to avoid unnecessary listeners
+                            if (!config.signal && !config.cancelToken) {
+                                return undefined;
+                            }
+                            const ctrl = new AbortController();
+                            const externalSignal: AbortSignal | undefined =
+                                config.signal;
+                            if (externalSignal) {
+                                if (externalSignal.aborted) {
+                                    try {
+                                        ctrl.abort();
+                                    } catch {
+                                        /* ignore */
+                                    }
+                                } else {
+                                    externalSignal.addEventListener(
+                                        'abort',
+                                        () => {
+                                            try {
+                                                ctrl.abort();
+                                            } catch {
+                                                /* ignore */
+                                            }
+                                        }
+                                    );
+                                }
+                            }
+                            // axios < v1 CancelToken support
+                            const { cancelToken } = config;
+                            if (
+                                cancelToken &&
+                                cancelToken.promise &&
+                                typeof cancelToken.promise.then === 'function'
+                            ) {
+                                cancelToken.promise
+                                    .then(() => {
+                                        try {
+                                            ctrl.abort();
+                                        } catch {
+                                            /* ignore */
+                                        }
+                                    })
+                                    .catch(() => {
+                                        /* ignore */
+                                    });
+                            }
+                            return ctrl;
+                        })();
+
                         const res = await gFetch(url, {
                             method,
                             headers,
                             body,
+                            // Only pass a signal if we created a controller;
+                            // avoids forcing fetch polyfills to require AbortController
+                            ...(controller
+                                ? { signal: controller.signal }
+                                : {}),
                         });
                         const text = await res.text();
                         const data = (() => {
