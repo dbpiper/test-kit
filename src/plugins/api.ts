@@ -1,7 +1,15 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* eslint-disable no-continue */
 
 import { definePlugin } from '../helpers/definePlugin';
+
+export enum ApiVerboseArea {
+    AxiosPatch = 'AxiosPatch',
+    JestMocks = 'JestMocks',
+    ModuleHook = 'ModuleHook',
+    Requests = 'Requests',
+}
 
 // Minimal helper to build a URL string similar to axios.getUri when axios is not available
 function buildUrlFromConfig(config: {
@@ -46,6 +54,7 @@ export type ApiCallRecord = {
 
 export type ApiConfig = {
     debug?: boolean;
+    verbose?: ApiVerboseArea[] | Set<ApiVerboseArea>;
 };
 
 export type ApiHelpers = {
@@ -96,11 +105,20 @@ export const apiPlugin = (config: ApiConfig = {}) => {
     let originalAxiosRequest: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let originalModuleRequire: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let originalModuleLoad: any;
 
     return definePlugin<'api', ApiHelpers>('api', {
         key: Symbol('api'),
         setup() {
             const { debug = false } = config;
+            const verboseSet: Set<ApiVerboseArea> = Array.isArray(
+                config.verbose
+            )
+                ? new Set(config.verbose)
+                : config.verbose instanceof Set
+                  ? config.verbose
+                  : new Set<ApiVerboseArea>();
 
             originalXHR = (
                 globalThis as unknown as {
@@ -185,16 +203,28 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 (listeners[event] || []).forEach((fn) => fn(detail));
             };
 
-            function log(...args: unknown[]) {
+            function isEnvDebugEnabled(): boolean {
                 const envVal = (
                     globalThis as unknown as {
                         process?: { env?: Record<string, string | undefined> };
                     }
                 ).process?.env?.TEST_KIT_API_DEBUG;
-                const envDebug =
-                    envVal != null && String(envVal).toLowerCase() === 'true';
-                const verbose = debug || envDebug;
-                if (verbose) {
+                return (
+                    envVal != null && String(envVal).toLowerCase() === 'true'
+                );
+            }
+
+            function logUser(...args: unknown[]) {
+                const verboseEnabled = debug || isEnvDebugEnabled();
+                if (verboseEnabled) {
+                    // eslint-disable-next-line no-console
+                    console.log('[API Plugin]', ...args);
+                }
+            }
+
+            function logInternal(area: ApiVerboseArea, ...args: unknown[]) {
+                const verboseEnabled = debug || isEnvDebugEnabled();
+                if (verboseEnabled && verboseSet.has(area)) {
                     // eslint-disable-next-line no-console
                     console.log('[API Plugin]', ...args);
                 }
@@ -202,10 +232,15 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
             function recordCall(apiCallRecord: ApiCallRecord) {
                 calls.push(apiCallRecord);
-                log('recordCall', apiCallRecord.method, apiCallRecord.path, {
-                    query: apiCallRecord.query,
-                    base: apiCallRecord.base,
-                });
+                logUser(
+                    'recordCall',
+                    apiCallRecord.method,
+                    apiCallRecord.path,
+                    {
+                        query: apiCallRecord.query,
+                        base: apiCallRecord.base,
+                    }
+                );
                 emit('call', apiCallRecord);
             }
 
@@ -221,32 +256,51 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             function startRequest(): number {
                 const id = shared.nextRequestId++;
                 shared.active.add(id);
-                log(
+                logInternal(
+                    ApiVerboseArea.Requests,
                     `startRequest: id=${id}, active.size=${shared.active.size}`
                 );
                 return id;
             }
 
             function endRequest(id: number) {
-                log(`endRequest: id=${id}, active.size=${shared.active.size}`);
+                logInternal(
+                    ApiVerboseArea.Requests,
+                    `endRequest: id=${id}, active.size=${shared.active.size}`
+                );
                 if (!shared.active.delete(id)) {
-                    log(`endRequest: id=${id} was already removed`);
+                    logInternal(
+                        ApiVerboseArea.Requests,
+                        `endRequest: id=${id} was already removed`
+                    );
                     return;
                 }
                 if (shared.active.size === 0) {
-                    log('endRequest: resolving all idle resolvers');
+                    logInternal(
+                        ApiVerboseArea.Requests,
+                        'endRequest: resolving all idle resolvers'
+                    );
                     shared.idleResolvers.forEach((resolve) => resolve());
                     shared.idleResolvers = [];
                 }
             }
 
             function waitForIdle(): Promise<void> {
-                log(`waitForIdle called, active.size=${shared.active.size}`);
+                logInternal(
+                    ApiVerboseArea.Requests,
+                    `waitForIdle called, active.size=${shared.active.size}`
+                );
                 if (shared.active.size === 0) {
-                    log('waitForIdle resolving immediately');
+                    logInternal(
+                        ApiVerboseArea.Requests,
+                        'waitForIdle resolving immediately'
+                    );
                     return Promise.resolve();
                 }
-                log(`waitForIdle waiting, active.size=${shared.active.size}`);
+                logInternal(
+                    ApiVerboseArea.Requests,
+                    `waitForIdle waiting, active.size=${shared.active.size}`
+                );
                 return new Promise((resolve) => {
                     shared.idleResolvers.push(resolve);
                     // Failsafe: avoid indefinite hangs if a request leaks
@@ -256,7 +310,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                         }
                     ).setTimeout(() => {
                         if (shared.active.size > 0) {
-                            log(
+                            logInternal(
+                                ApiVerboseArea.Requests,
                                 'waitForIdle timeout reached; force-resolving idle and clearing active requests'
                             );
                             shared.active.clear();
@@ -268,7 +323,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             }
 
             function installHang(method: HttpMethod, rawPath: string) {
-                log(`installHang called for ${method} ${rawPath}`);
+                logUser(`installHang called for ${method} ${rawPath}`);
                 mockRoutes.push({
                     method,
                     rawPath,
@@ -277,7 +332,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     body: new Promise<never>(() => {}),
                     remainingUses: 1,
                 });
-                log(
+                logInternal(
+                    ApiVerboseArea.Requests,
                     `installHang completed, mockRoutes.length=${mockRoutes.length}`
                 );
             }
@@ -654,8 +710,15 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 }
 
                 abort() {
-                    log(`XHR abort called for ${this.method} ${this.url}`);
-                    log('[API Plugin] matched:', this.matched);
+                    logInternal(
+                        ApiVerboseArea.Requests,
+                        `XHR abort called for ${this.method} ${this.url}`
+                    );
+                    logInternal(
+                        ApiVerboseArea.Requests,
+                        'matched:',
+                        this.matched
+                    );
                     this.aborted = true;
                     if (this.timerId != null) {
                         (
@@ -667,18 +730,19 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
                     const stubPath =
                         this.matched?.stubPath || new URL(this.url).pathname;
-                    log(
-                        `[API Plugin] Recording abort with path: ${stubPath.replace(
-                            /\/$/,
-                            ''
-                        )}`
+                    logUser(
+                        `Recording abort with path: ${stubPath.replace(/\/$/, '')}`
                     );
                     recordAbort({
                         method: this.method as HttpMethod,
                         path: stubPath.replace(/\/$/, ''),
                         timestamp: Date.now(),
                     });
-                    log('[API Plugin] Current abortedCalls:', abortedCalls);
+                    logInternal(
+                        ApiVerboseArea.Requests,
+                        'Current abortedCalls:',
+                        abortedCalls
+                    );
                     this.readyState = 4;
                     this.status = 0;
                     this.onreadystatechange?.();
@@ -838,7 +902,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     })(),
                 });
 
-                log(
+                logUser(
                     `Mock found for ${method} ${url} -> ${match.route.rawPath}`
                 );
 
@@ -863,23 +927,30 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     const signal = init?.signal;
 
                     const onAbort = () => {
-                        log(`Fetch abort called for ${method} ${url}`);
-                        log('[API Plugin] match:', match);
+                        logInternal(
+                            ApiVerboseArea.Requests,
+                            `Fetch abort called for ${method} ${url}`
+                        );
+                        logInternal(ApiVerboseArea.Requests, 'match:', match);
                         if (aborted) {
                             return;
                         }
                         aborted = true;
                         clearTimeout(tid);
                         const abortPath = match.stubPath.replace(/\/$/, '');
-                        log(
-                            `[API Plugin] Recording fetch abort with path: ${abortPath}`
+                        logUser(
+                            `Recording fetch abort with path: ${abortPath}`
                         );
                         recordAbort({
                             method,
                             path: abortPath,
                             timestamp: Date.now(),
                         });
-                        log('[API Plugin] Current abortedCalls:', abortedCalls);
+                        logInternal(
+                            ApiVerboseArea.Requests,
+                            'Current abortedCalls:',
+                            abortedCalls
+                        );
                         endRequest(requestId);
                         const err = new Error('Aborted');
                         (err as { name?: string }).name = 'AbortError';
@@ -1087,49 +1158,92 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     }
                 };
 
-                if (axiosLocal?.defaults) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    originalAxiosAdapter = (axiosLocal as any).defaults
-                        ?.adapter;
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (axiosLocal as any).defaults =
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        (axiosLocal as any).defaults || {};
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    (axiosLocal as any).defaults.adapter = makeAdapter();
-                    // Also patch request() directly to be resilient to adapter selection
+                // Helper to patch any axios-like candidate in-place
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const patchAxiosLike = (candidate: any) => {
                     try {
-                        if (
-                            !originalAxiosRequest &&
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (axiosLocal as any).request
-                        ) {
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            originalAxiosRequest = (axiosLocal as any).request;
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            (axiosLocal as any).request = (config: any) =>
-                                (
-                                    makeAdapter() as unknown as (
-                                        // eslint-disable-next-line max-len
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        cfg: any
-                                    ) => Promise<unknown>
-                                )(config);
+                        if (!candidate || !candidate.defaults) {
+                            logInternal(
+                                ApiVerboseArea.AxiosPatch,
+                                'patchAxiosLike: skipped (no defaults)'
+                            );
+                            return false;
                         }
+                        logInternal(
+                            ApiVerboseArea.AxiosPatch,
+                            'patchAxiosLike: candidate defaults found',
+                            {
+                                hasAdapter: !!candidate.defaults.adapter,
+                                adapterType: typeof candidate.defaults.adapter,
+                                hasRequest: !!candidate.request,
+                            }
+                        );
+                        if (originalAxiosAdapter == null) {
+                            originalAxiosAdapter = candidate.defaults.adapter;
+                            logInternal(
+                                ApiVerboseArea.AxiosPatch,
+                                'patchAxiosLike: captured original adapter'
+                            );
+                        }
+                        // eslint-disable-next-line no-param-reassign
+                        candidate.defaults.adapter = makeAdapter();
+                        logInternal(
+                            ApiVerboseArea.AxiosPatch,
+                            'patchAxiosLike: assigned test adapter'
+                        );
+                        try {
+                            if (!originalAxiosRequest && candidate.request) {
+                                originalAxiosRequest = candidate.request;
+                                // eslint-disable-next-line no-param-reassign
+                                candidate.request = (config: unknown) =>
+                                    (
+                                        makeAdapter() as unknown as (
+                                            cfg: unknown
+                                        ) => Promise<unknown>
+                                    )(config);
+                                logInternal(
+                                    ApiVerboseArea.AxiosPatch,
+                                    'patchAxiosLike: replaced request()'
+                                );
+                            }
+                        } catch {
+                            /* ignore */
+                        }
+                        return true;
                     } catch {
-                        /* ignore */
+                        logInternal(
+                            ApiVerboseArea.AxiosPatch,
+                            'patchAxiosLike: error while patching'
+                        );
+                        return false;
                     }
+                };
+
+                if (axiosLocal?.defaults) {
+                    patchAxiosLike(axiosLocal);
                 }
 
                 // Best-effort: patch any other loaded axios modules in the require cache
                 try {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const cache: any =
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-undef
-                        typeof require !== 'undefined'
-                            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              (require as any).cache
-                            : undefined;
+                    let cache: any | undefined;
+                    try {
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires
+                        const Module = require('module');
+                        cache =
+                            (typeof require !== 'undefined' &&
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (require as any).cache) ||
+                            // eslint-disable-next-line max-len
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+                            (Module as any)?._cache;
+                    } catch {
+                        cache =
+                            (typeof require !== 'undefined' &&
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (require as any).cache) ||
+                            undefined;
+                    }
                     if (cache) {
                         // eslint-disable-next-line guard-for-in, no-restricted-syntax
                         for (const key in cache) {
@@ -1145,43 +1259,297 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                             }
                             // eslint-disable-next-line no-restricted-syntax
                             for (const candidate of candidates) {
-                                try {
-                                    if (candidate.defaults) {
-                                        if (originalAxiosAdapter == null) {
-                                            originalAxiosAdapter =
-                                                candidate.defaults.adapter;
-                                        }
-                                        candidate.defaults.adapter =
-                                            makeAdapter();
-                                        // Best-effort: also patch request()
-                                        try {
-                                            if (
-                                                !originalAxiosRequest &&
-                                                candidate.request
-                                            ) {
-                                                originalAxiosRequest =
-                                                    candidate.request;
-                                                candidate.request = (
-                                                    config: unknown
-                                                ) =>
-                                                    (
-                                                        makeAdapter() as unknown as (
-                                                            cfg: unknown
-                                                        ) => Promise<unknown>
-                                                    )(config);
-                                            }
-                                        } catch {
-                                            /* ignore */
-                                        }
-                                    }
-                                } catch {
-                                    /* ignore candidate failures */
-                                }
+                                const patched = patchAxiosLike(candidate);
+                                logInternal(
+                                    ApiVerboseArea.AxiosPatch,
+                                    'cache-scan: processed',
+                                    key,
+                                    { patched }
+                                );
                             }
                         }
                     }
                 } catch {
                     /* ignore cache scan */
+                }
+
+                // Jest-specific: scan registered virtual mocks and force-instantiate
+                // them so we can patch their exports as axios-like candidates.
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    let jestGlobal: any = (globalThis as unknown as any).jest;
+                    if (!jestGlobal) {
+                        try {
+                            // eslint-disable-next-line @typescript-eslint/no-var-requires
+                            const j = require('@jest/globals');
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            jestGlobal =
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (j && (j as any).jest) ||
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                (j as any)?.default?.jest;
+                        } catch {
+                            /* ignore */
+                        }
+                    }
+                    logInternal(
+                        ApiVerboseArea.JestMocks,
+                        'jest-global-detect',
+                        {
+                            present: !!jestGlobal,
+                            type: typeof jestGlobal,
+                            hasRequireMock:
+                                jestGlobal &&
+                                typeof jestGlobal.requireMock === 'function',
+                            keys: (() => {
+                                try {
+                                    return Object.keys(jestGlobal || {}).slice(
+                                        0,
+                                        10
+                                    );
+                                } catch {
+                                    return [] as string[];
+                                }
+                            })(),
+                        }
+                    );
+                    if (
+                        jestGlobal &&
+                        typeof jestGlobal.requireMock === 'function'
+                    ) {
+                        // Collect possible factory maps from various Jest internals
+                        // across versions. Fall back to scanning any Map-like fields.
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const candidateFactoryMaps: any[] = [];
+                        const direct = jestGlobal._mockFactories;
+                        if (direct) {
+                            candidateFactoryMaps.push(direct);
+                        }
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const reg: any = jestGlobal._moduleMockRegistry;
+                        if (reg) {
+                            if (reg._mockFactories) {
+                                candidateFactoryMaps.push(reg._mockFactories);
+                            }
+                            if (reg._rawModuleFactories) {
+                                candidateFactoryMaps.push(
+                                    reg._rawModuleFactories
+                                );
+                            }
+                            if (reg._factories) {
+                                candidateFactoryMaps.push(reg._factories);
+                            }
+                        }
+                        // Heuristic: scan all jestGlobal props that look Map-like
+                        for (const key of Object.keys(jestGlobal)) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const maybeMapLike: any =
+                                jestGlobal[key as keyof typeof jestGlobal];
+                            const looksMapLike =
+                                maybeMapLike &&
+                                (typeof maybeMapLike.forEach === 'function' ||
+                                    typeof maybeMapLike.keys === 'function');
+                            if (
+                                looksMapLike &&
+                                candidateFactoryMaps.indexOf(maybeMapLike) ===
+                                    -1
+                            ) {
+                                candidateFactoryMaps.push(maybeMapLike);
+                            }
+                        }
+
+                        const seen = new Set<string>();
+                        const WRAPPED = Symbol.for('test-kit.api.wrapFactory');
+                        for (const factories of candidateFactoryMaps) {
+                            try {
+                                const names: string[] = [];
+                                try {
+                                    const objectKeys = Object.keys(
+                                        factories || {}
+                                    );
+                                    logInternal(
+                                        ApiVerboseArea.JestMocks,
+                                        'jest-mocks: factory map keys sample',
+                                        {
+                                            sample: objectKeys.slice(0, 5),
+                                            length: objectKeys.length,
+                                        }
+                                    );
+                                    // Plain-object style registry: treat
+                                    // own enumerable keys as module names
+                                    for (const keyName of objectKeys) {
+                                        const candidateVal: unknown =
+                                            // eslint-disable-next-line max-len
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            (factories as any)[keyName];
+                                        const isFactoryLike =
+                                            typeof candidateVal ===
+                                                'function' ||
+                                            (candidateVal &&
+                                                typeof candidateVal ===
+                                                    'object');
+                                        if (isFactoryLike) {
+                                            names.push(keyName);
+                                        }
+                                    }
+                                } catch {
+                                    /* ignore */
+                                }
+                                if (typeof factories.keys === 'function') {
+                                    try {
+                                        for (const name of factories.keys()) {
+                                            if (typeof name === 'string') {
+                                                names.push(name);
+                                            }
+                                        }
+                                    } catch {
+                                        /* ignore */
+                                    }
+                                }
+                                if (typeof factories.forEach === 'function') {
+                                    try {
+                                        factories.forEach(
+                                            (_value: unknown, key: unknown) => {
+                                                if (typeof key === 'string') {
+                                                    names.push(key);
+                                                }
+                                            }
+                                        );
+                                    } catch {
+                                        /* ignore */
+                                    }
+                                }
+                                logInternal(
+                                    ApiVerboseArea.JestMocks,
+                                    'jest-mocks: discovered factories',
+                                    {
+                                        count: names.length,
+                                    }
+                                );
+                                for (const name of names) {
+                                    try {
+                                        if (
+                                            typeof factories.get ===
+                                                'function' &&
+                                            typeof factories.set === 'function'
+                                        ) {
+                                            const existing =
+                                                factories.get(name);
+                                            if (
+                                                typeof existing ===
+                                                    'function' &&
+                                                // eslint-disable-next-line max-len
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                !(existing as any)[WRAPPED]
+                                            ) {
+                                                const originalFactory =
+                                                    existing as unknown as (
+                                                        ...args: unknown[]
+                                                    ) => unknown;
+                                                const wrapped =
+                                                    function wrappedFactory(
+                                                        this: unknown,
+                                                        ...args: unknown[]
+                                                    ) {
+                                                        const exp =
+                                                            originalFactory.apply(
+                                                                this,
+                                                                args
+                                                            );
+                                                        try {
+                                                            const expWithDefaults =
+                                                                typeof exp ===
+                                                                    'object' &&
+                                                                exp !==
+                                                                    undefined
+                                                                    ? (exp as {
+                                                                          defaults?: unknown;
+                                                                          default?: {
+                                                                              defaults?: unknown;
+                                                                          };
+                                                                      })
+                                                                    : undefined;
+                                                            if (
+                                                                expWithDefaults?.defaults !==
+                                                                    undefined ||
+                                                                expWithDefaults
+                                                                    ?.default
+                                                                    ?.defaults !==
+                                                                    undefined
+                                                            ) {
+                                                                const expWithDefaults =
+                                                                    exp as {
+                                                                        defaults?: unknown;
+                                                                        default?: {
+                                                                            defaults?: unknown;
+                                                                        };
+                                                                    };
+                                                                const cand =
+                                                                    expWithDefaults.defaults !==
+                                                                    undefined
+                                                                        ? expWithDefaults
+                                                                        : expWithDefaults.default;
+                                                                patchAxiosLike(
+                                                                    cand
+                                                                );
+                                                                logInternal(
+                                                                    ApiVerboseArea.JestMocks,
+                                                                    'jest-mocks: patched export from wrapped factory',
+                                                                    name
+                                                                );
+                                                            }
+                                                        } catch {
+                                                            /* ignore */
+                                                        }
+                                                        return exp;
+                                                    } as unknown as typeof existing;
+                                                // eslint-disable-next-line max-len
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                (wrapped as any)[WRAPPED] =
+                                                    true;
+                                                factories.set(name, wrapped);
+                                                logInternal(
+                                                    ApiVerboseArea.JestMocks,
+                                                    'jest-mocks: wrapped',
+                                                    name
+                                                );
+                                            }
+                                        }
+                                    } catch {
+                                        /* ignore per-factory wrap */
+                                    }
+                                    if (seen.has(name)) {
+                                        continue;
+                                    }
+                                    seen.add(name);
+                                    try {
+                                        const exp =
+                                            jestGlobal.requireMock(name);
+                                        const cand = exp?.defaults
+                                            ? exp
+                                            : exp?.default?.defaults
+                                              ? exp.default
+                                              : undefined;
+                                        if (cand) {
+                                            // Patch already-instantiated mock export
+                                            patchAxiosLike(cand);
+                                            logInternal(
+                                                ApiVerboseArea.JestMocks,
+                                                'jest-mocks: patched export',
+                                                name
+                                            );
+                                        }
+                                    } catch {
+                                        /* ignore per-mock errors */
+                                    }
+                                }
+                            } catch {
+                                /* ignore this factory map */
+                            }
+                        }
+                    }
+                } catch {
+                    /* ignore jest factory scan */
                 }
 
                 // Also patch Module.prototype.require to catch future axios requires
@@ -1214,52 +1582,112 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                                 request,
                                 ...args,
                             ]);
-                            if (request === 'axios') {
-                                try {
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const candidate: any | undefined =
-                                        exp?.defaults
+                            try {
+                                // Patch axios explicitly, but also any module that looks axios-like
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const candidate: any | undefined =
+                                    request === 'axios'
+                                        ? exp?.defaults
                                             ? exp
                                             : exp?.default?.defaults
                                               ? exp.default
-                                              : undefined;
-                                    if (candidate?.defaults) {
-                                        if (originalAxiosAdapter == null) {
-                                            originalAxiosAdapter =
-                                                candidate.defaults.adapter;
-                                        }
-                                        candidate.defaults.adapter =
-                                            makeAdapter();
-                                        // Also patch request() for newly loaded axios instances
-                                        try {
-                                            if (
-                                                !originalAxiosRequest &&
-                                                candidate.request
-                                            ) {
-                                                originalAxiosRequest =
-                                                    candidate.request;
-                                                candidate.request = (
-                                                    config: unknown
-                                                ) =>
-                                                    (
-                                                        makeAdapter() as unknown as (
-                                                            cfg: unknown
-                                                        ) => Promise<unknown>
-                                                    )(config);
-                                            }
-                                        } catch {
-                                            /* ignore */
-                                        }
-                                    }
-                                } catch {
-                                    /* ignore */
+                                              : undefined
+                                        : exp?.defaults
+                                          ? exp
+                                          : exp?.default?.defaults
+                                            ? exp.default
+                                            : undefined;
+                                if (candidate) {
+                                    const patched = patchAxiosLike(candidate);
+                                    logInternal(
+                                        ApiVerboseArea.ModuleHook,
+                                        'Module.require: processed',
+                                        request,
+                                        { patched }
+                                    );
                                 }
+                            } catch {
+                                /* ignore */
                             }
                             return exp;
                         } as typeof proto.require;
                     }
                 } catch {
                     /* ignore intercept setup 2 */
+                }
+
+                // Patch Module._load as well to catch late axios loads in Jest/runtime
+                try {
+                    // eslint-disable-next-line max-len
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                    const Module = require('module');
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (
+                        Module &&
+                        typeof (Module as { _load?: unknown })._load ===
+                            'function' &&
+                        !originalModuleLoad
+                    ) {
+                        type ModuleWithLoad = {
+                            _load: (
+                                request: string,
+                                parent: NodeModule | null,
+                                isMain: boolean
+                            ) => unknown;
+                        };
+                        originalModuleLoad = (Module as ModuleWithLoad)._load;
+                        // eslint-disable-next-line func-names, no-underscore-dangle
+                        (Module as ModuleWithLoad)._load = function (
+                            request: string,
+                            // eslint-disable-next-line max-len
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+                            _parent: any,
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            _isMain: boolean
+                        ) {
+                            // eslint-disable-next-line max-len
+                            // eslint-disable-next-line prefer-rest-params, @typescript-eslint/no-explicit-any
+                            const exp: any = originalModuleLoad.apply(
+                                this,
+                                // eslint-disable-next-line prefer-rest-params
+                                arguments as unknown as [
+                                    string,
+                                    unknown,
+                                    boolean,
+                                ]
+                            );
+                            try {
+                                // Patch axios explicitly, but also any module that looks axios-like
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const candidate: any | undefined =
+                                    request === 'axios'
+                                        ? exp?.defaults
+                                            ? exp
+                                            : exp?.default?.defaults
+                                              ? exp.default
+                                              : undefined
+                                        : exp?.defaults
+                                          ? exp
+                                          : exp?.default?.defaults
+                                            ? exp.default
+                                            : undefined;
+                                if (candidate) {
+                                    const patched = patchAxiosLike(candidate);
+                                    logInternal(
+                                        ApiVerboseArea.ModuleHook,
+                                        'Module._load: processed',
+                                        request,
+                                        { patched }
+                                    );
+                                }
+                            } catch {
+                                /* ignore */
+                            }
+                            return exp;
+                        };
+                    }
+                } catch {
+                    /* ignore intercept setup 3 */
                 }
             } catch {
                 // axios not installed; no-op. Fetch/XHR interception still works.
@@ -1279,7 +1707,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 status = 200,
                 repeat = 1
             ) {
-                log(`Installing mock for ${method} ${rawPath}`);
+                logUser(`Installing mock for ${method} ${rawPath}`);
                 mockRoutes.push({
                     method,
                     rawPath,
@@ -1435,6 +1863,12 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 if (originalModuleRequire && Module?.prototype?.require) {
                     Module.prototype.require = originalModuleRequire;
                     originalModuleRequire = undefined;
+                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if (originalModuleLoad && (Module as any)?._load) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (Module as any)._load = originalModuleLoad;
+                    originalModuleLoad = undefined;
                 }
             } catch {
                 /* ignore */

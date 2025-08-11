@@ -1,4 +1,4 @@
-name: Lint
+name: Tests
 
 on:
     push:
@@ -7,7 +7,7 @@ on:
         branches: [main]
 
 jobs:
-    lint:
+    tests:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
@@ -22,5 +22,5 @@ jobs:
             - name: Install
               run: npm ci
 
-            - name: Lint
-              run: npm run lint
+            - name: Test (coverage)
+              run: npm run test:coverage
