@@ -186,7 +186,16 @@ export const apiPlugin = (config: ApiConfig = {}) => {
             };
 
             function log(...args: unknown[]) {
-                if (debug) {
+                const verbose =
+                    debug ||
+                    (
+                        globalThis as unknown as {
+                            process?: {
+                                env?: Record<string, string | undefined>;
+                            };
+                        }
+                    ).process?.env?.TEST_KIT_API_DEBUG === '1';
+                if (verbose) {
                     // eslint-disable-next-line no-console
                     console.log('[API Plugin]', ...args);
                 }
@@ -194,6 +203,10 @@ export const apiPlugin = (config: ApiConfig = {}) => {
 
             function recordCall(apiCallRecord: ApiCallRecord) {
                 calls.push(apiCallRecord);
+                log('recordCall', apiCallRecord.method, apiCallRecord.path, {
+                    query: apiCallRecord.query,
+                    base: apiCallRecord.base,
+                });
                 emit('call', apiCallRecord);
             }
 
