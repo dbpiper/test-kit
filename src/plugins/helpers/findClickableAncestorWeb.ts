@@ -4,13 +4,17 @@ export function findClickableAncestorWeb(node: Element | null): Element | null {
         const el = current as HTMLElement;
         const tag = el.tagName.toLowerCase();
         const hasRoleButton = el.getAttribute('role') === 'button';
-        const hasOnClick =
-            typeof (el as unknown as { onclick?: unknown }).onclick ===
-            'function';
-        if (tag === 'button' || hasRoleButton || hasOnClick) {
+        const isAnchorWithHref = tag === 'a' && el.hasAttribute('href');
+        const hasInlineOnClick = el.hasAttribute('onclick');
+        if (
+            tag === 'button' ||
+            hasRoleButton ||
+            isAnchorWithHref ||
+            hasInlineOnClick
+        ) {
             return el;
         }
         current = el.parentElement;
     }
-    return node;
+    throw new Error('test-kit: no web click target found');
 }

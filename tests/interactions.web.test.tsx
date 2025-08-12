@@ -266,6 +266,19 @@ test('clickByText walks up from nested spans to clickable ancestor', async () =>
     expect(screen.getByTestId('nested-count')).toHaveTextContent('count:1');
 });
 
+test('clickByText throws if no clickable ancestor exists and element has no role', async () => {
+    const kit = createKit();
+    render(
+        <div>
+            <span data-testid="plain">Plain</span>
+        </div>
+    );
+
+    await expect(kit.interactions.clickByText('Plain')).rejects.toThrow(
+        'test-kit: no web click target found'
+    );
+});
+
 test('typeText supports label and testId fallbacks', async () => {
     const kit = createKit();
     render(<InputsSample />);
@@ -320,7 +333,7 @@ test('clickCell, expectSelected/expectNotSelected, selectViaKb, clearSelections'
 
 test('throws a clear error when user is not a web userEvent instance', async () => {
     const kit = createKit();
-    render(<div>Bad</div>);
+    render(<button type="button">Bad</button>);
 
     const fakeCtx = {
         screen,
