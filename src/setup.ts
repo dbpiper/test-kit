@@ -9,6 +9,7 @@ import {
 } from './redux/config';
 import { configureRouter, type RouterEnvironment } from './router/config';
 import { apiPlugin } from './plugins/api';
+import { resolveModes, type TestKitMode } from './runtime/detectTestPlatform';
 
 export type SetupTestKitOptions<S> = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,27 +36,7 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
         bootState.__testKitApiInstalled = true;
     }
     if (!bootState.__testKitBoot) {
-        // Choose web or native without importing platform libs at module scope
-        const isNative = (() => {
-            if (options.mode && options.mode !== 'both') {
-                return options.mode === 'native';
-            }
-            try {
-                // RN preset sets navigator.product = 'ReactNative'
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const nav = (globalThis as any).navigator;
-                const prod =
-                    typeof nav?.product === 'string' ? nav.product : '';
-                return prod.toLowerCase() === 'reactnative';
-            } catch {
-                return false;
-            }
-        })();
-
-        const modes: Array<'web' | 'native'> =
-            options.mode === 'both'
-                ? ['web', 'native']
-                : [isNative ? 'native' : 'web'];
+        const modes: Array<TestKitMode> = resolveModes(options.mode);
 
         // Bridge the Testing Library instances used by tests into globals
         // so consumer libraries resolve the same module instances.
