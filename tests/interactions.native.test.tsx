@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react-native';
+/* eslint-disable @typescript-eslint/no-require-imports */
+import { render, screen, fireEvent, act } from '@testing-library/react-native';
 
 import React, { useState } from 'react';
 import {
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 
 import { createKitNative } from '../src/index.native';
+import { interactionsNativePlugin } from '../src/plugins/interactionsNative';
 
 function ButtonSampleNative() {
     const [count, setCount] = useState(0);
@@ -182,4 +184,62 @@ test('longPress helpers fire onLongPress by text and testID', async () => {
 
     expect(screen.getByText('a:1')).toBeDefined();
     expect(screen.getByText('b:1')).toBeDefined();
+});
+
+// Merged from interactionsNative.resolve.test.tsx
+function makeFakeRntl(real: typeof import('@testing-library/react-native')) {
+    const base = (
+        ...args: Parameters<typeof real.fireEvent>
+        // @ts-expect-error variadic passthrough
+    ) => real.fireEvent(...(args as unknown as []));
+    const fakeFireEvent = Object.assign(base, {
+        press: jest.fn(real.fireEvent.press),
+        changeText: jest.fn(real.fireEvent.changeText),
+    }) as unknown as typeof real.fireEvent;
+
+    // Wrap to preserve behavior and allow call assertions
+    const fakeAct: typeof real.act = jest.fn(((cb: unknown) =>
+        real.act(cb)) as typeof real.act);
+
+    return Object.defineProperties(
+        {
+            act: fakeAct,
+            fireEvent: fakeFireEvent,
+        } as Partial<Pick<typeof real, 'act' | 'fireEvent' | 'screen'>>,
+        {
+            screen: {
+                configurable: true,
+                enumerable: true,
+                get: () => real.screen,
+            },
+        }
+    ) as Pick<typeof real, 'act' | 'fireEvent' | 'screen'>;
+}
+
+test('interactionsNative uses global __RNTL__ act and fireEvent when provided', async () => {
+    // Use the module instance so screen getter reads the current export after render()
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const real =
+        require('@testing-library/react-native') as typeof import('@testing-library/react-native');
+    const fake = makeFakeRntl(real);
+    // eslint-disable-next-line no-underscore-dangle, @typescript-eslint/no-explicit-any
+    (global as any).__RNTL__ = fake;
+
+    const helpers = interactionsNativePlugin.setup({} as never);
+
+    // Render using the SAME module instance to initialize its internal screen
+    real.render(
+        <View>
+            <Text onPress={() => undefined}>Go</Text>
+        </View>
+    );
+
+    await helpers.tapByText('Go');
+
+    expect(fake.act).toHaveBeenCalled();
+    expect(fake.fireEvent.press).toHaveBeenCalled();
+
+    // cleanup
+    // eslint-disable-next-line no-underscore-dangle, @typescript-eslint/no-explicit-any
+    delete (global as any).__RNTL__;
 });
