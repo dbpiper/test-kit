@@ -16,8 +16,8 @@ export type SetupTestKitOptions<S> = {
     contextProviders?: ComponentType<{ children?: ReactNode }>[];
     middlewares?: MinimalMiddleware[];
     router?: RouterEnvironment;
-    // Optional: force web or native boot. If omitted, auto-detects.
-    mode?: 'web' | 'native';
+    // Optional: select platforms to prepare. Defaults to preparing both.
+    mode?: 'web' | 'native' | 'both';
 };
 
 export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
@@ -37,7 +37,7 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
     if (!bootState.__testKitBoot) {
         // Choose web or native without importing platform libs at module scope
         const isNative = (() => {
-            if (options.mode) {
+            if (options.mode && options.mode !== 'both') {
                 return options.mode === 'native';
             }
             try {
@@ -52,17 +52,58 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
             }
         })();
 
+        const modes: Array<'web' | 'native'> =
+            options.mode === 'both'
+                ? ['web', 'native']
+                : [isNative ? 'native' : 'web'];
+
+        // Bridge the Testing Library instances used by tests into globals
+        // so consumer libraries resolve the same module instances.
+        for (const platform of modes) {
+            try {
+                const globalTestKit = globalThis as Record<string, unknown>;
+                if (platform === 'web') {
+                    if (typeof globalTestKit.__RTL__ === 'undefined') {
+                        // eslint-disable-next-line max-len
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                        globalTestKit.__RTL__ = require('@testing-library/react');
+                    }
+                    if (typeof globalTestKit.__USER_EVENT__ === 'undefined') {
+                        // eslint-disable-next-line max-len
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                        globalTestKit.__USER_EVENT__ = require('@testing-library/user-event');
+                    }
+                } else {
+                    if (typeof globalTestKit.__RNTL__ === 'undefined') {
+                        // eslint-disable-next-line max-len
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                        globalTestKit.__RNTL__ = require('@testing-library/react-native');
+                    }
+                }
+            } catch {
+                // Best-effort bridge; ignore failures for unavailable platforms
+            }
+        }
+
         try {
-            if (isNative) {
-                // eslint-disable-next-line max-len
-                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-                const { createKitNative } = require('./createKitNative');
-                bootState.__testKitBoot = createKitNative();
+            // For single-platform mode, instantiate the kit to ensure platform plugins initialize.
+            if (modes.length === 1) {
+                const isOnlyNative = modes.includes('native');
+                if (isOnlyNative) {
+                    // eslint-disable-next-line max-len
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                    const { createKitNative } = require('./createKitNative');
+                    bootState.__testKitBoot = createKitNative();
+                } else {
+                    // eslint-disable-next-line max-len
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                    const { createKit } = require('./createKit');
+                    bootState.__testKitBoot = createKit();
+                }
             } else {
                 // eslint-disable-next-line max-len
-                // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-                const { createKit } = require('./createKit');
-                bootState.__testKitBoot = createKit();
+                // In dual mode, avoid picking one; mark boot and let tests construct kits explicitly
+                bootState.__testKitBoot = true;
             }
         } catch {
             // Swallow; API interceptors are already installed

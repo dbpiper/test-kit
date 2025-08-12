@@ -1,48 +1,158 @@
 import { definePlugin } from '../helpers/definePlugin';
 
-export type DateHelpers = Record<string, never>;
+let jestHooksRegistered = false;
 
-// Freeze system time without switching to fake timers.
-// Implements a minimal version of sinon's setSystemTime:
-// - Overrides global Date constructor so `new Date()` and `Date()` return the
-//   fixed time when called without args
-// - Overrides `Date.now()` to the fixed epoch
-// - Leaves timers (setTimeout, setInterval, etc.) as real timers
-export const datePlugin = (date: Date = new Date('2024-01-15T12:00:00.000Z')) =>
+export type DateHelpers = {
+    setBase: (date: Date) => void;
+    setToday: (options?: { at?: 'midnightLocal' | 'now' }) => void;
+    freeze: (date?: Date) => void;
+    unfreeze: () => void;
+};
+
+export type DatePluginOptions = {
+    // Default base date each test starts from; time flows forward using real timers
+    fixedAt?: Date;
+};
+
+export const datePlugin = (options: DatePluginOptions | Date = {}) =>
     definePlugin<'date', DateHelpers>('date', {
         key: Symbol('date'),
         setup() {
-            const fixedTs = date.getTime();
-            const originalDateRef = Date as unknown as typeof Date;
+            const RealDate = Date as unknown as typeof Date;
 
-            // Create a replacement Date that returns the fixed time when called with no args
-            // and otherwise behaves like the native Date.
-            const FixedDate = new Proxy(originalDateRef, {
-                construct(target, args: unknown[]) {
+            const resolvedOptions: DatePluginOptions =
+                options instanceof Date ? { fixedAt: options } : options;
+
+            const defaultBase =
+                resolvedOptions.fixedAt ??
+                new RealDate('2024-01-15T12:00:00.000Z');
+
+            // Flowing-time state with optional freeze overlay
+            let frozen = false;
+            let frozenNowMs = 0;
+            let baseFixedMs = defaultBase.getTime();
+            let realAnchorMs = RealDate.now();
+
+            const computeNow = (): number => {
+                if (frozen) {
+                    return frozenNowMs;
+                }
+                return baseFixedMs + (RealDate.now() - realAnchorMs);
+            };
+
+            const setBase = (date: Date): void => {
+                baseFixedMs = date.getTime();
+                realAnchorMs = RealDate.now();
+            };
+
+            const setToday = (opts?: {
+                at?: 'midnightLocal' | 'now';
+            }): void => {
+                const nowReal = new RealDate(RealDate.now());
+                if (opts?.at === 'midnightLocal') {
+                    nowReal.setHours(0, 0, 0, 0);
+                }
+                setBase(nowReal);
+            };
+
+            const freeze = (date?: Date): void => {
+                frozen = true;
+                frozenNowMs = date ? date.getTime() : computeNow();
+            };
+
+            const unfreeze = (): void => {
+                if (!frozen) {
+                    return;
+                }
+                frozen = false;
+                // Rebase so time continues from the frozen instant after unfreeze
+                baseFixedMs = frozenNowMs;
+                realAnchorMs = RealDate.now();
+            };
+
+            // Register Jest hooks (when available) to reset per-test and auto-unfreeze
+            const registerJestHooks = (): void => {
+                if (jestHooksRegistered) {
+                    return;
+                }
+                // Avoid registering hooks from inside an active test context
+                try {
+                    const maybeExpect = (
+                        globalThis as unknown as {
+                            expect?: unknown;
+                        }
+                    ).expect as
+                        | { getState?: () => { currentTestName?: string } }
+                        | undefined;
+                    const state = maybeExpect?.getState?.();
+                    if (state?.currentTestName) {
+                        return;
+                    }
+                } catch {
+                    // ignore
+                }
+                try {
+                    // eslint-disable-next-line max-len
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+                    const j = require('@jest/globals');
+                    const gBefore = (
+                        globalThis as unknown as {
+                            beforeEach?: (fn: () => void) => void;
+                        }
+                    ).beforeEach;
+                    const beforeEachHook = j.beforeEach ?? gBefore;
+                    const gAfter = (
+                        globalThis as unknown as {
+                            afterEach?: (fn: () => void) => void;
+                        }
+                    ).afterEach;
+                    const afterEachHook = j.afterEach ?? gAfter;
+                    beforeEachHook?.(() => {
+                        frozen = false;
+                        setBase(defaultBase);
+                    });
+                    afterEachHook?.(() => {
+                        unfreeze();
+                    });
+                    jestHooksRegistered = true;
+                } catch {
+                    const jestGlobals = globalThis as unknown as {
+                        beforeEach?: (fn: () => void) => void;
+                        afterEach?: (fn: () => void) => void;
+                    };
+                    jestGlobals.beforeEach?.(() => {
+                        frozen = false;
+                        setBase(defaultBase);
+                    });
+                    jestGlobals.afterEach?.(() => {
+                        unfreeze();
+                    });
+                    jestHooksRegistered = true;
+                }
+            };
+            registerJestHooks();
+
+            // Date proxy using computeNow()
+            const FixedDate = new Proxy(RealDate, {
+                construct(_target, args: unknown[]) {
                     return args.length === 0
-                        ? // eslint-disable-next-line new-cap
-                          new originalDateRef(fixedTs)
-                        : new (originalDateRef as unknown as new (
+                        ? new RealDate(computeNow())
+                        : new (RealDate as unknown as new (
                               ...argsList: unknown[]
-                          ) => Date)(
-                              // eslint-disable-next-line new-cap
-                              ...args,
-                          );
+                          ) => Date)(...args);
                 },
-                apply(target, thisArg, args: unknown[]) {
-                    // Date() called as function returns string representation of current time
+                apply(_target, thisArg, args: unknown[]) {
                     return args.length === 0
-                        ? // eslint-disable-next-line new-cap
-                          new originalDateRef(fixedTs).toString()
+                        ? new RealDate(computeNow()).toString()
                         : (
-                              originalDateRef as unknown as (
+                              RealDate as unknown as (
                                   ...argsList: unknown[]
                               ) => string
                           ).apply(thisArg, args);
                 },
                 get(target, prop, receiver) {
                     if (prop === 'now') {
-                        return () => fixedTs;
+                        return () => computeNow();
                     }
                     return Reflect.get(target, prop, receiver);
                 },
@@ -56,9 +166,9 @@ export const datePlugin = (date: Date = new Date('2024-01-15T12:00:00.000Z')) =>
                 globalThis as unknown as {
                     __TEST_KIT_ORIGINAL_DATE__?: typeof Date;
                 }
-            ).__TEST_KIT_ORIGINAL_DATE__ = originalDateRef;
+            ).__TEST_KIT_ORIGINAL_DATE__ = RealDate;
 
-            return {} as DateHelpers;
+            return { setBase, setToday, freeze, unfreeze } as DateHelpers;
         },
         teardown() {
             const anyGlobal = globalThis as unknown as {

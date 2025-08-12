@@ -1,8 +1,4 @@
-import {
-    screen as rnScreen,
-    userEvent as rnUserEvent,
-} from '@testing-library/react-native';
-
+import type { NativeScreen, NativeUser } from '../types';
 import { definePlugin } from '../helpers/definePlugin';
 
 export type InteractionsNativeHelpers = {
@@ -18,35 +14,69 @@ export const interactionsNativePlugin = definePlugin<
     InteractionsNativeHelpers
 >('interactions', {
     key: Symbol('interactions'),
-    setup() {
-        const screen = rnScreen;
-        const user = rnUserEvent.setup();
+    setup(ctx) {
+        const resolveScreen = () => {
+            const rntl =
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+                (globalThis as any).__RNTL__ ??
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                require('@testing-library/react-native');
+            return (rntl as { screen: NativeScreen }).screen;
+        };
+        const resolveRntl = () => {
+            const rntl =
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+                (globalThis as any).__RNTL__ ??
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                require('@testing-library/react-native');
+            return rntl as typeof import('@testing-library/react-native');
+        };
+
         return {
             async tapByText(text: string | RegExp) {
-                const el = screen.getByText(text);
-                await user.press(el as never);
+                const el = resolveScreen().getByText(text);
+                await (ctx.user as NativeUser).press(el as never);
             },
             async tapByTestId(testId: string) {
-                const el = screen.getByTestId(testId);
-                await user.press(el as never);
+                const el = resolveScreen().getByTestId(testId);
+                await (ctx.user as NativeUser).press(el as never);
             },
             async typeText(testIdOrLabel: string | RegExp, text: string) {
                 let input: unknown;
                 try {
-                    input = screen.getByLabelText(testIdOrLabel as string);
+                    input = resolveScreen().getByLabelText(
+                        testIdOrLabel as string
+                    );
                 } catch {
-                    input = screen.getByTestId(testIdOrLabel as string);
+                    try {
+                        input = resolveScreen().getByPlaceholderText(
+                            testIdOrLabel as string
+                        );
+                    } catch {
+                        input = resolveScreen().getByTestId(
+                            testIdOrLabel as string
+                        );
+                    }
                 }
-                await user.clear(input as never);
-                await user.type(input as never, text);
+                // For React Native, controlled inputs expect onChangeText to receive
+                // the full value. Some userEvent implementations emit per-character
+                // updates which set only the last character when the component does
+                // `setValue(text)`. Use fireEvent.changeText with the complete string.
+                const { fireEvent } = resolveRntl();
+                try {
+                    fireEvent.changeText(input as never, '');
+                } catch {
+                    // ignore if clearing fails
+                }
+                fireEvent.changeText(input as never, text as never);
             },
             async longPressByText(text: string | RegExp) {
-                const el = screen.getByText(text);
-                await user.longPress(el as never);
+                const el = resolveScreen().getByText(text);
+                await (ctx.user as NativeUser).longPress(el as never);
             },
             async longPressByTestId(testId: string) {
-                const el = screen.getByTestId(testId);
-                await user.longPress(el as never);
+                const el = resolveScreen().getByTestId(testId);
+                await (ctx.user as NativeUser).longPress(el as never);
             },
         };
     },

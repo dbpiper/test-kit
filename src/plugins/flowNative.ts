@@ -1,5 +1,3 @@
-import { act as rtlAct } from '@testing-library/react-native';
-
 import { definePlugin } from '../helpers/definePlugin';
 import type { NativeUser } from '../types';
 
@@ -14,9 +12,21 @@ export const flowNativePlugin = definePlugin<'flow', FlowHelpers>('flow', {
         const isNativeUser = (candidate: unknown): candidate is NativeUser =>
             !!candidate &&
             typeof (candidate as { press?: unknown }).press === 'function';
+        const resolveAct = () => {
+            const rntl =
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+                (globalThis as any).__RNTL__ ??
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                require('@testing-library/react-native');
+            return (
+                rntl as {
+                    act: typeof import('@testing-library/react-native').act;
+                }
+            ).act;
+        };
         return {
             act: async (fn: (u: NativeUser) => Promise<void>) => {
-                await rtlAct(async () => {
+                await resolveAct()(async () => {
                     const candidateUser = ctx.user;
                     if (!isNativeUser(candidateUser)) {
                         throw new Error(
@@ -25,12 +35,12 @@ export const flowNativePlugin = definePlugin<'flow', FlowHelpers>('flow', {
                     }
                     await fn(candidateUser);
                 });
-                await rtlAct(async () => {
+                await resolveAct()(async () => {
                     await new Promise((resolve) => setTimeout(resolve, 0));
                 });
             },
             run: async () => {
-                await rtlAct(async () => {
+                await resolveAct()(async () => {
                     await new Promise((resolve) => setTimeout(resolve, 0));
                 });
             },
