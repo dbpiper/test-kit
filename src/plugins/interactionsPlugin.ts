@@ -93,8 +93,8 @@ export const interactionsPlugin = definePlugin<
             },
             async clickByText(text: string | RegExp) {
                 const byText = resolveScreen().getByText(text);
-                const el =
-                    (findClickableAncestorWeb(byText) as HTMLElement) ?? byText;
+                const ancestor = findClickableAncestorWeb(byText);
+                const el = (ancestor as HTMLElement) ?? byText;
                 await resolveAct()(async () => {
                     if (!isWebUser(ctx.user)) {
                         throw new Error(
@@ -106,9 +106,8 @@ export const interactionsPlugin = definePlugin<
             },
             async clickByTestId(testId: string) {
                 const byTestId = resolveScreen().getByTestId(testId);
-                const el =
-                    (findClickableAncestorWeb(byTestId) as HTMLElement) ??
-                    byTestId;
+                const ancestor = findClickableAncestorWeb(byTestId);
+                const el = (ancestor as HTMLElement) ?? byTestId;
                 await resolveAct()(async () => {
                     if (!isWebUser(ctx.user)) {
                         throw new Error(
