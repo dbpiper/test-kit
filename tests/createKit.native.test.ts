@@ -1,4 +1,4 @@
-import { createKitNative } from '../src';
+import { createKitNative } from '../src/createKitNative';
 
 describe('createKitNative inside test (native)', () => {
     it('does not throw and exposes date helpers when created inside a test', () => {
