@@ -108,6 +108,15 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
         } catch {
             // Swallow; API interceptors are already installed
         }
+        // If a kit instance was created above, register per-test date hooks now
+        try {
+            const maybeKit = bootState.__testKitBoot as unknown as {
+                date?: { registerJestDateHooks?: () => void };
+            };
+            maybeKit?.date?.registerJestDateHooks?.();
+        } catch {
+            // best-effort; ignore if not available
+        }
     }
     const globalScope = globalThis as unknown as {
         window?: { store?: unknown };

@@ -1,12 +1,14 @@
 import { definePlugin } from '../helpers/definePlugin';
 
-let jestHooksRegistered = false;
-
 export type DateHelpers = {
     setBase: (date: Date) => void;
     setToday: (options?: { at?: 'midnightLocal' | 'now' }) => void;
     freeze: (date?: Date) => void;
     unfreeze: () => void;
+    // Test lifecycle helpers are intentionally exposed so callers can
+    // register per-test resets from a global setup file.
+    resetForTest: () => void;
+    registerJestDateHooks: () => void;
 };
 
 export type DatePluginOptions = {
@@ -70,67 +72,26 @@ export const datePlugin = (options: DatePluginOptions | Date = {}) =>
                 realAnchorMs = RealDate.now();
             };
 
-            // Register Jest hooks (when available) to reset per-test and auto-unfreeze
-            const registerJestHooks = (): void => {
-                if (jestHooksRegistered) {
-                    return;
-                }
-                // Avoid registering hooks from inside an active test context
-                try {
-                    const maybeExpect = (
-                        globalThis as unknown as {
-                            expect?: unknown;
-                        }
-                    ).expect as
-                        | { getState?: () => { currentTestName?: string } }
-                        | undefined;
-                    const state = maybeExpect?.getState?.();
-                    if (state?.currentTestName) {
-                        return;
-                    }
-                } catch {
-                    // ignore
-                }
-                try {
-                    // eslint-disable-next-line max-len
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-                    const j = require('@jest/globals');
-                    const gBefore = (
-                        globalThis as unknown as {
-                            beforeEach?: (fn: () => void) => void;
-                        }
-                    ).beforeEach;
-                    const beforeEachHook = j.beforeEach ?? gBefore;
-                    const gAfter = (
-                        globalThis as unknown as {
-                            afterEach?: (fn: () => void) => void;
-                        }
-                    ).afterEach;
-                    const afterEachHook = j.afterEach ?? gAfter;
-                    beforeEachHook?.(() => {
-                        frozen = false;
-                        setBase(defaultBase);
-                    });
-                    afterEachHook?.(() => {
-                        unfreeze();
-                    });
-                    jestHooksRegistered = true;
-                } catch {
-                    const jestGlobals = globalThis as unknown as {
-                        beforeEach?: (fn: () => void) => void;
-                        afterEach?: (fn: () => void) => void;
-                    };
-                    jestGlobals.beforeEach?.(() => {
-                        frozen = false;
-                        setBase(defaultBase);
-                    });
-                    jestGlobals.afterEach?.(() => {
-                        unfreeze();
-                    });
-                    jestHooksRegistered = true;
-                }
+            // Provide explicit lifecycle helpers instead of auto-registering
+            // Jest hooks from inside setup(). Consumers should call
+            // registerJestDateHooks() once in a global setup file.
+            const resetForTest = (): void => {
+                frozen = false;
+                setBase(defaultBase);
             };
-            registerJestHooks();
+
+            const registerJestDateHooks = (): void => {
+                const globalHooks = globalThis as unknown as {
+                    beforeEach?: (fn: () => void) => void;
+                    afterEach?: (fn: () => void) => void;
+                };
+                globalHooks.beforeEach?.(() => {
+                    resetForTest();
+                });
+                globalHooks.afterEach?.(() => {
+                    unfreeze();
+                });
+            };
 
             // Date proxy using computeNow()
             const FixedDate = new Proxy(RealDate, {
@@ -168,7 +129,14 @@ export const datePlugin = (options: DatePluginOptions | Date = {}) =>
                 }
             ).__TEST_KIT_ORIGINAL_DATE__ = RealDate;
 
-            return { setBase, setToday, freeze, unfreeze } as DateHelpers;
+            return {
+                setBase,
+                setToday,
+                freeze,
+                unfreeze,
+                resetForTest,
+                registerJestDateHooks,
+            } as DateHelpers;
         },
         teardown() {
             const anyGlobal = globalThis as unknown as {
