@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-import { render, screen, fireEvent, act } from '@testing-library/react-native';
+import { render, screen } from '@testing-library/react-native';
 
 import React, { useState } from 'react';
 import {
