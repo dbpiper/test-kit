@@ -16,8 +16,7 @@ describe('apiPlugin (integration style)', () => {
     const plugin = apiPlugin();
 
     beforeEach(() => {
-        // Enable verbose debug logs inside the plugin for these tests
-        process.env.TEST_KIT_API_DEBUG = 'true';
+        process.env.TEST_KIT_API_DEBUG = 'false';
         api = plugin.setup({} as any);
         api.clear();
     });

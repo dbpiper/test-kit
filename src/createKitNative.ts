@@ -1,7 +1,7 @@
-import { screen, userEvent } from '@testing-library/react-native';
+/* eslint-disable import/first */
 
 import type { AnyPlugin, MergeNamespacedPlugins } from './types/core';
-import type { NativeUser } from './types/native';
+import type { NativeScreen, NativeUser } from './types/native';
 import { defaultPluginsNative } from './defaultPlugins.native';
 
 export function createKitNative(): import('./types/native').NativeKitContext &
@@ -15,6 +15,20 @@ export function createKitNative(
     pluginsOrFirst?: unknown,
     ...rest: unknown[]
 ): unknown {
+    // Resolve React Native Testing Library at call time so any bridge
+    // configured by setupTestKit is honored.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rntl: unknown =
+        // eslint-disable-next-line no-underscore-dangle, @typescript-eslint/no-explicit-any
+        (globalThis as any).__RNTL__ ??
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('@testing-library/react-native');
+
+    const { screen, userEvent } = rntl as {
+        screen: NativeScreen;
+        userEvent: { setup: () => NativeUser };
+    };
+
     const explicit: AnyPlugin[] =
         pluginsOrFirst === undefined
             ? []

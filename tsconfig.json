@@ -1,18 +1,18 @@
 {
     "compilerOptions": {
-        "target": "ES2022",
-        "module": "ES2022",
-        "moduleResolution": "Bundler",
-        "lib": ["ES2022", "DOM"],
+        "target": "ES2020",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "jsx": "react-jsx",
+        "lib": ["ES2020", "DOM"],
         "strict": true,
-        "declaration": true,
-        "outDir": "dist",
-        "skipLibCheck": true,
         "esModuleInterop": true,
+        "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "outDir": "dist",
+        "types": ["jest", "node", "@testing-library/jest-dom"]
     },
     "include": ["src", "tests"],
-    "types": ["jest", "node"],
     "exclude": ["dist", "node_modules"]
 }

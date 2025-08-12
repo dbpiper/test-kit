@@ -5,7 +5,7 @@ import { definePlugin } from '../helpers/definePlugin';
 
 export type FlowHelpers = {
     // Execute the interaction immediately and flush updates. Prefer awaiting it.
-    act: (fn: (u: UserEvent) => Promise<void>) => Promise<void>;
+    act: (fn: (user: UserEvent) => Promise<void>) => Promise<void>;
     // Back-compat: no-op flush for older tests that still call run().
     run: () => Promise<void>;
 };
@@ -19,7 +19,7 @@ export const flowPlugin = definePlugin<'flow', FlowHelpers>('flow', {
             typeof (candidate as { keyboard?: unknown }).keyboard ===
                 'function';
         return {
-            act: async (fn: (u: UserEvent) => Promise<void>) => {
+            act: async (fn: (user: UserEvent) => Promise<void>) => {
                 // Wrap the interaction in React Testing Library's act
                 await rtlAct(async () => {
                     const candidateUser = ctx.user;

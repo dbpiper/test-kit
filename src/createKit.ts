@@ -1,5 +1,4 @@
-import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+/* eslint-disable import/first */
 
 import type { AnyPlugin, MergeNamespacedPlugins } from './types/core';
 import type { WebUser } from './types/web';
@@ -18,6 +17,26 @@ export function createKit(
     pluginsOrFirst?: unknown,
     ...rest: unknown[]
 ): unknown {
+    // Resolve web Testing Library instances at call time so any bridge
+    // configured by setupTestKit is honored.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const webTl: any =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+        (globalThis as any).__RTL__ ??
+        // eslint-disable-next-line max-len
+        // eslint-disable-next-line import/no-commonjs, @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+        require('@testing-library/react');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userEventModule: any =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+        (globalThis as any).__USER_EVENT__ ??
+        // eslint-disable-next-line max-len
+        // eslint-disable-next-line import/no-commonjs, @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+        require('@testing-library/user-event');
+
+    const { screen } = webTl;
+    const userEvent = userEventModule.default ?? userEventModule;
+
     const explicit: AnyPlugin[] =
         pluginsOrFirst === undefined
             ? []
