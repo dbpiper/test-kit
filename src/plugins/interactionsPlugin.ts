@@ -3,6 +3,7 @@ import type { UserEvent } from '@testing-library/user-event';
 
 import type { KitContext } from '../types';
 import { definePlugin } from '../helpers/definePlugin';
+import { findClickableAncestorWeb } from './helpers/findClickableAncestorWeb';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const expect: any;
 
@@ -75,9 +76,11 @@ export const interactionsPlugin = definePlugin<
                         name: label,
                     });
                 } catch {
-                    btn = resolveScreen().getByText(label, {
-                        selector: 'button, [role="button"]',
-                    });
+                    // If no role, find by text then walk up to a clickable ancestor
+                    const byText = resolveScreen().getByText(label);
+                    btn =
+                        (findClickableAncestorWeb(byText) as HTMLElement) ??
+                        byText;
                 }
                 await resolveAct()(async () => {
                     if (!isWebUser(ctx.user)) {
@@ -89,7 +92,9 @@ export const interactionsPlugin = definePlugin<
                 });
             },
             async clickByText(text: string | RegExp) {
-                const el = resolveScreen().getByText(text);
+                const byText = resolveScreen().getByText(text);
+                const el =
+                    (findClickableAncestorWeb(byText) as HTMLElement) ?? byText;
                 await resolveAct()(async () => {
                     if (!isWebUser(ctx.user)) {
                         throw new Error(
@@ -100,7 +105,10 @@ export const interactionsPlugin = definePlugin<
                 });
             },
             async clickByTestId(testId: string) {
-                const el = resolveScreen().getByTestId(testId);
+                const byTestId = resolveScreen().getByTestId(testId);
+                const el =
+                    (findClickableAncestorWeb(byTestId) as HTMLElement) ??
+                    byTestId;
                 await resolveAct()(async () => {
                     if (!isWebUser(ctx.user)) {
                         throw new Error(

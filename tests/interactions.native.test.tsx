@@ -1,7 +1,13 @@
 import { render, screen } from '@testing-library/react-native';
 
 import React, { useState } from 'react';
-import { Text, TextInput, Pressable, View } from 'react-native';
+import {
+    Text,
+    TextInput,
+    Pressable,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 import { createKitNative } from '../src/index.native';
 
@@ -30,14 +36,33 @@ function ClickablesSampleNative() {
             >
                 Click Me
             </Text>
-            <Pressable
+            <TouchableOpacity
                 testID="target"
                 onPress={() => setCount((currentCount) => currentCount + 1)}
             >
                 <Text>Target Button</Text>
-            </Pressable>
+            </TouchableOpacity>
             <Text>{`count:${count}`}</Text>
             <Text>{`alt:${altCount}`}</Text>
+        </View>
+    );
+}
+
+function NestedPressableSampleNative() {
+    const [count, setCount] = useState(0);
+    return (
+        <View>
+            <Pressable
+                onPress={() => setCount((currentCount) => currentCount + 1)}
+            >
+                <View>
+                    <Text>
+                        <Text>Deep </Text>
+                        <Text>Press</Text>
+                    </Text>
+                </View>
+            </Pressable>
+            <Text testID="nested-count">{`count:${count}`}</Text>
         </View>
     );
 }
@@ -118,6 +143,17 @@ test('tapByTestId works and pressing text increments altCount', async () => {
 
     expect(screen.getByText('count:1')).toBeDefined();
     expect(screen.getByText('alt:1')).toBeDefined();
+});
+
+test('tapByText walks up from nested Text to nearest Pressable', async () => {
+    const kit = createKitNative();
+    render(<NestedPressableSampleNative />);
+
+    await kit.flow.act(async () => {
+        await kit.interactions.tapByText('Press');
+    });
+
+    expect(screen.getByText('count:1')).toBeDefined();
 });
 
 test('typeText supports label, placeholder, and testID fallbacks', async () => {

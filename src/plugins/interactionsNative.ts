@@ -1,5 +1,6 @@
-import type { NativeScreen, NativeUser } from '../types';
+import type { NativeScreen } from '../types';
 import { definePlugin } from '../helpers/definePlugin';
+import { findPressTargetNative } from './helpers/findPressTargetNative';
 
 export type InteractionsNativeHelpers = {
     tapByText: (text: string | RegExp) => Promise<void>;
@@ -14,7 +15,19 @@ export const interactionsNativePlugin = definePlugin<
     InteractionsNativeHelpers
 >('interactions', {
     key: Symbol('interactions'),
-    setup(ctx) {
+    setup() {
+        const resolveAct = () => {
+            const rntl =
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+                (globalThis as any).__RNTL__ ??
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                require('@testing-library/react-native');
+            return (
+                rntl as {
+                    act: typeof import('@testing-library/react-native').act;
+                }
+            ).act;
+        };
         const resolveScreen = () => {
             const rntl =
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
@@ -35,11 +48,19 @@ export const interactionsNativePlugin = definePlugin<
         return {
             async tapByText(text: string | RegExp) {
                 const el = resolveScreen().getByText(text);
-                await (ctx.user as NativeUser).press(el as never);
+                const pressTarget = findPressTargetNative(el);
+                const { fireEvent } = resolveRntl();
+                await resolveAct()(async () => {
+                    fireEvent.press(pressTarget as never);
+                });
             },
             async tapByTestId(testId: string) {
                 const el = resolveScreen().getByTestId(testId);
-                await (ctx.user as NativeUser).press(el as never);
+                const pressTarget = findPressTargetNative(el);
+                const { fireEvent } = resolveRntl();
+                await resolveAct()(async () => {
+                    fireEvent.press(pressTarget as never);
+                });
             },
             async typeText(testIdOrLabel: string | RegExp, text: string) {
                 let input: unknown;
@@ -63,20 +84,30 @@ export const interactionsNativePlugin = definePlugin<
                 // updates which set only the last character when the component does
                 // `setValue(text)`. Use fireEvent.changeText with the complete string.
                 const { fireEvent } = resolveRntl();
-                try {
-                    fireEvent.changeText(input as never, '');
-                } catch {
-                    // ignore if clearing fails
-                }
-                fireEvent.changeText(input as never, text as never);
+                await resolveAct()(async () => {
+                    try {
+                        fireEvent.changeText(input as never, '');
+                    } catch {
+                        // ignore if clearing fails
+                    }
+                    fireEvent.changeText(input as never, text as never);
+                });
             },
             async longPressByText(text: string | RegExp) {
                 const el = resolveScreen().getByText(text);
-                await (ctx.user as NativeUser).longPress(el as never);
+                const pressTarget = findPressTargetNative(el);
+                const { fireEvent } = resolveRntl();
+                await resolveAct()(async () => {
+                    fireEvent(pressTarget as never, 'onLongPress');
+                });
             },
             async longPressByTestId(testId: string) {
                 const el = resolveScreen().getByTestId(testId);
-                await (ctx.user as NativeUser).longPress(el as never);
+                const pressTarget = findPressTargetNative(el);
+                const { fireEvent } = resolveRntl();
+                await resolveAct()(async () => {
+                    fireEvent(pressTarget as never, 'onLongPress');
+                });
             },
         };
     },
