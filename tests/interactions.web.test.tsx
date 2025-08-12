@@ -41,6 +41,31 @@ function ClickablesSample() {
     );
 }
 
+function NestedButtonSample() {
+    const [count, setCount] = useState(0);
+    return (
+        <div>
+            <button
+                type="button"
+                onClick={() => setCount((currentCount) => currentCount + 1)}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        setCount((currentCount) => currentCount + 1);
+                    }
+                }}
+                tabIndex={0}
+                aria-label="Deep Press"
+            >
+                <span>
+                    <span>Deep </span>
+                    <span>Press</span>
+                </span>
+            </button>
+            <div data-testid="nested-count">{`count:${count}`}</div>
+        </div>
+    );
+}
+
 function InputsSample() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -228,6 +253,17 @@ test('clickByTestId works', async () => {
     });
 
     expect(screen.getByText('count:1')).toBeInTheDocument();
+});
+
+test('clickByText walks up from nested spans to clickable ancestor', async () => {
+    const kit = createKit();
+    render(<NestedButtonSample />);
+
+    await kit.flow.act(async () => {
+        await kit.interactions.clickByText('Press');
+    });
+
+    expect(screen.getByTestId('nested-count')).toHaveTextContent('count:1');
 });
 
 test('typeText supports label and testId fallbacks', async () => {

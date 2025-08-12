@@ -2,7 +2,7 @@ import { definePlugin } from '../helpers/definePlugin';
 import type { NativeUser } from '../types';
 
 export type FlowHelpers = {
-    act: (fn: (u: NativeUser) => Promise<void>) => Promise<void>;
+    act: (fn: (user: NativeUser) => Promise<void>) => Promise<void>;
     run: () => Promise<void>;
 };
 
@@ -25,7 +25,7 @@ export const flowNativePlugin = definePlugin<'flow', FlowHelpers>('flow', {
             ).act;
         };
         return {
-            act: async (fn: (u: NativeUser) => Promise<void>) => {
+            act: async (fn: (user: NativeUser) => Promise<void>) => {
                 await resolveAct()(async () => {
                     const candidateUser = ctx.user;
                     if (!isNativeUser(candidateUser)) {
