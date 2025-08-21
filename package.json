@@ -42,6 +42,7 @@
         "test:coverage": "headlamp --coverage",
         "test:dev": "headlamp --changed=branch --coverage --onlyFailures",
         "lint": "eslint .",
+        "lint:errors": "eslint . --quiet",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

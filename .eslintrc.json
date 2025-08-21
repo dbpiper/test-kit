@@ -183,7 +183,7 @@
     },
     "overrides": [
         {
-            "files": ["*.js", "*.cjs", "build.config.ts"],
+            "files": ["*.js", "*.cjs", "build.config.ts", "headlamp.config.ts"],
             "parserOptions": { "project": null }
         },
         {
