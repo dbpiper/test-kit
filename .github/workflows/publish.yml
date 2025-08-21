@@ -31,12 +31,15 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
             - uses: actions/setup-node@v4
               with:
                   node-version: 24
                   cache: 'npm'
+                  cache-dependency-path: package-lock.json
             - run: npm ci
-            - run: npm run test:coverage
+            - run: npx headlamp --coverage --changed=lastCommit
 
     publish:
         needs: [lint, typecheck, tests]

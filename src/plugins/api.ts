@@ -108,6 +108,9 @@ export const apiPlugin = (config: ApiConfig = {}) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let originalModuleLoad: any;
 
+    // Hook installation is now handled in setupTestKit() to avoid Jest's
+    // "hooks cannot be defined inside tests" restriction
+
     return definePlugin<'api', ApiHelpers>('api', {
         key: Symbol('api'),
         setup() {
@@ -160,6 +163,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     nextRequestId: number;
                     active: Set<number>;
                     idleResolvers: Array<() => void>;
+                    hooksInstalled?: boolean;
                 };
             };
             // eslint-disable-next-line no-underscore-dangle
@@ -174,9 +178,26 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 nextRequestId: 1,
                 active: new Set<number>(),
                 idleResolvers: [] as Array<() => void>,
+                hooksInstalled: false,
             });
 
             const { calls, abortedCalls, mockRoutes } = shared;
+
+            // Ensure a clean slate whenever a new kit/plugin instance is created
+            // to prevent leakage from previous tests in the same process.
+            try {
+                calls.length = 0;
+                mockRoutes.length = 0;
+                abortedCalls.length = 0;
+                shared.nextRequestId = 1;
+                if (shared.active.size > 0) {
+                    shared.active.clear();
+                    const resolvers = shared.idleResolvers.splice(0);
+                    resolvers.forEach((resolve) => resolve());
+                }
+            } catch {
+                /* ignore */
+            }
 
             // Minimal event emitter to avoid DOM EventTarget/CustomEvent in RN
             const listeners: Record<
@@ -1801,6 +1822,8 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                     resolvers.forEach((resolver) => resolver());
                 }
             };
+
+            // Hook installation is now handled in setupTestKit()
 
             const getAbortedCalls = () => abortedCalls;
 

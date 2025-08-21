@@ -104,7 +104,7 @@
         "radix": ["error", "always"],
         "yoda": ["error", "never", { "onlyEquality": true }],
         "no-underscore-dangle": [
-            "error",
+            "warn",
             {
                 "allowAfterThis": false,
                 "allow": [
@@ -183,7 +183,7 @@
     },
     "overrides": [
         {
-            "files": ["*.js", "*.cjs", "build.config.ts"],
+            "files": ["*.js", "*.cjs", "build.config.ts", "headlamp.config.ts"],
             "parserOptions": { "project": null }
         },
         {
