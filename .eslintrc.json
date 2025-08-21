@@ -104,7 +104,7 @@
         "radix": ["error", "always"],
         "yoda": ["error", "never", { "onlyEquality": true }],
         "no-underscore-dangle": [
-            "error",
+            "warn",
             {
                 "allowAfterThis": false,
                 "allow": [

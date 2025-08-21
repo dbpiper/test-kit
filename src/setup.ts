@@ -21,6 +21,77 @@ export type SetupTestKitOptions<S> = {
     mode?: 'web' | 'native' | 'both';
 };
 
+// Hook installation function - must be called outside of test execution
+function installApiClearHooks(): void {
+    const globalState = globalThis as unknown as {
+        __testKitApi?: {
+            calls: unknown[];
+            abortedCalls: unknown[];
+            mockRoutes: unknown[];
+            nextRequestId: number;
+            active: Set<number>;
+            idleResolvers: Array<() => void>;
+            hooksInstalled?: boolean;
+        };
+    };
+
+    const shared = globalState.__testKitApi;
+    if (!shared || shared.hooksInstalled) {
+        return;
+    }
+
+    try {
+        const ourThis = globalThis as unknown as {
+            beforeEach?: (fn: () => void) => void;
+        };
+
+        const install = (fn: (cb: () => void) => void) => {
+            try {
+                fn(() => {
+                    // Clear the shared state between tests
+                    const currentShared = globalState.__testKitApi;
+                    if (currentShared) {
+                        currentShared.calls.length = 0;
+                        currentShared.mockRoutes.length = 0;
+                        currentShared.abortedCalls.length = 0;
+                        currentShared.nextRequestId = 1;
+                        if (currentShared.active.size > 0) {
+                            currentShared.active.clear();
+                            const resolvers =
+                                currentShared.idleResolvers.splice(0);
+                            resolvers.forEach((resolver: () => void) =>
+                                resolver()
+                            );
+                        }
+                    }
+                });
+                shared.hooksInstalled = true;
+                return true;
+            } catch {
+                // If installing throws, skip silently
+                return false;
+            }
+        };
+
+        if (typeof ourThis.beforeEach === 'function') {
+            install(ourThis.beforeEach);
+        } else {
+            // Fallback to explicit import for non-global jest envs
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const ourJest = require('@jest/globals');
+                if (ourJest && typeof ourJest.beforeEach === 'function') {
+                    install(ourJest.beforeEach);
+                }
+            } catch {
+                /* ignore Jest import failure */
+            }
+        }
+    } catch {
+        /* ignore hook installation failure */
+    }
+}
+
 export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
     // Initialize test-kit default plugins early so global interceptors
     // (fetch/XMLHttpRequest/axios adapter) are installed before any app
@@ -33,6 +104,11 @@ export function setupTestKit<S>(options: SetupTestKitOptions<S>): void {
         // Install API interceptors synchronously; this does not depend on platform
         // @ts-expect-error ignore type error
         apiPlugin().setup({} as unknown as Record<string, unknown>);
+
+        // Install Jest beforeEach hooks here, outside of test execution context
+        // to avoid Jest's "hooks cannot be defined inside tests" restriction
+        installApiClearHooks();
+
         bootState.__testKitApiInstalled = true;
     }
     if (!bootState.__testKitBoot) {
