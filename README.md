@@ -214,6 +214,23 @@ await kit.flow.act(async (user) => {
 await waitFor(() => expect(screen.getByText('Login')).toBeDefined());
 ```
 
+If your component relies on selector-driven effects and you need to rerender while preserving the same Redux store, use the stable-store helpers:
+
+```tsx
+import React from 'react';
+import { render, act } from '@testing-library/react-native';
+import { createKitNative, statePlugin } from '@suerg/test-kit';
+
+const kit = createKitNative(statePlugin());
+const ui = <RootStackNavigator />;
+const { rerender } = render(kit.state.renderWithStableStore(ui));
+
+// flip a flag in state and rerender without recreating the store
+await act(async () => {
+    kit.state.rerenderWithStableStore(rerender, ui);
+});
+```
+
 ## API Plugin (HTTP mocking)
 
 Available as part of defaults (web and native):
@@ -256,6 +273,8 @@ Helpers:
 - withPatch(patch): merge-in static preloaded state
 - withProviders(providers): add more wrapper providers for this kit
 - renderWithState(ui): wraps `ui` with `Provider` and extra providers
+- renderWithStableStore(ui): like renderWithState, but keeps a single persistent store across rerenders
+- rerenderWithStableStore(rerender, ui): convenience to rerender with the same persistent store
 - stubState(path, value) or stubState({ nested: patches })
 
 Example:
