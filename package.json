@@ -1,6 +1,6 @@
 {
     "name": "@suerg/test-kit",
-    "version": "0.1.26",
+    "version": "0.1.27",
     "private": false,
     "type": "module",
     "react-native": "dist/index.native.cjs",
@@ -27,14 +27,19 @@
             "require": "./dist/index.cjs"
         }
     },
-    "sideEffects": false,
+    "sideEffects": [
+        "./src/index.ts",
+        "./src/index.native.ts",
+        "./src/createKit.ts",
+        "./src/createKitNative.ts"
+    ],
     "files": [
         "dist",
         "README.md",
         "LICENSE"
     ],
     "scripts": {
-        "build": "unbuild && node --enable-source-maps scripts/postbuild.mjs",
+        "build": "tsdown && node --enable-source-maps scripts/postbuild.mjs",
         "prepack": "npm run build",
         "build:yalc": "npm run build && npx yalc publish",
         "dev:yalc": "nodemon -w src -e ts,tsx,js,jsx -d 700ms -x \"npm run build:yalc\"",
@@ -119,8 +124,8 @@
         "react-test-renderer": "^19.1.1",
         "redux": "^5.0.1",
         "ts-jest": "^29.4.1",
+        "tsdown": "^0.14.2",
         "typescript": "^5.9.2",
-        "unbuild": "^2.0.0",
         "yalc": "^1.0.0-pre.53"
     }
 }
