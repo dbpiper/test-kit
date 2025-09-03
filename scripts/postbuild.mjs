@@ -27,6 +27,25 @@ const bootstrap = fs.readFileSync(
 
 fs.writeFileSync(cjsPath, bootstrap);
 
+// After build, fix unscoped init_* calls emitted by the bundler in CJS outputs
+// by qualifying them with require_setup. This avoids ReferenceError at runtime
+// when chunks are split and init_* live in the setup chunk.
+const qualifyInitCalls = (file) => {
+    if (!fs.existsSync(file)) return;
+    const src = fs.readFileSync(file, 'utf8');
+    // Only process files that import the setup chunk
+    if (!src.includes("require('./setup-")) return;
+    const replaced = src.replace(
+        /(^|\n)(\s*)init_(\w+)\(/g,
+        (_m, pre, ws, name) => `${pre}${ws}require_setup.init_${name}(`
+    );
+    if (replaced !== src) fs.writeFileSync(file, replaced);
+};
+
+// Qualify for native and web CJS entry points
+qualifyInitCalls(path.join(distDir, 'index.native.cjs'));
+qualifyInitCalls(path.join(distDir, 'index.web.cjs'));
+
 // Prefer unified type definitions as the package-level types
 try {
     if (fs.existsSync(unifiedDts)) {

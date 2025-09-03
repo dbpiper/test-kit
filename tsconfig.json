@@ -13,6 +13,6 @@
         "outDir": "dist",
         "types": ["jest", "node", "@testing-library/jest-dom"]
     },
-    "include": ["src", "tests"],
+    "include": ["src", "tests", "scripts", "tsdown.config.ts"],
     "exclude": ["dist", "node_modules"]
 }
