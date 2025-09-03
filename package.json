@@ -89,7 +89,7 @@
         "@reduxjs/toolkit": "^2.8.2",
         "@testing-library/jest-dom": "^6.6.4",
         "@testing-library/react": "^16.3.0",
-        "@testing-library/react-native": "^14.0.0-alpha.1",
+        "@testing-library/react-native": "^13.3.3",
         "@testing-library/user-event": "^14.6.1",
         "@types/jest": "^30.0.0",
         "@types/react": "^19.1.9",
