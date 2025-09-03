@@ -1,11 +1,11 @@
 {
     "name": "@suerg/test-kit",
-    "version": "0.1.27",
+    "version": "0.1.28",
     "private": false,
     "type": "module",
     "react-native": "dist/index.native.cjs",
-    "main": "dist/index.cjs",
-    "module": "dist/index.mjs",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.mjs",
     "types": "dist/index.d.ts",
     "repository": {
         "type": "git",
@@ -24,8 +24,10 @@
             },
             "types": "./dist/index.d.ts",
             "import": "./dist/index.mjs",
-            "require": "./dist/index.cjs"
-        }
+            "require": "./dist/index.cjs",
+            "default": "./dist/index.cjs"
+        },
+        "./package.json": "./package.json"
     },
     "sideEffects": [
         "./src/index.ts",
