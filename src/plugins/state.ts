@@ -22,6 +22,11 @@ export type StateHelpers<S> = {
         providers: ComponentType<{ children?: ReactNode }>[]
     ) => void;
     renderWithState: (component: ReactElement) => ReactElement;
+    renderWithStableStore: (component: ReactElement) => ReactElement;
+    rerenderWithStableStore: (
+        rerender: (ui: ReactElement) => void,
+        component: ReactElement
+    ) => void;
     stubState: {
         <P extends string>(path: P, value: unknown): void;
         (patch: DeepPartial<S>): void;
@@ -120,6 +125,15 @@ export function statePlugin<S = TestKitReduxState>(
             const store = () =>
                 env.makeStore(buildPreloadedState()) as MinimalStore<S>;
 
+            // Persistent store used across rerenders when desired
+            let persistentStore: MinimalStore<S> | null = null;
+            const getPersistentStore = (): MinimalStore<S> => {
+                if (!persistentStore) {
+                    persistentStore = store();
+                }
+                return persistentStore;
+            };
+
             const renderWithState = (component: ReactElement) => {
                 const storeInstance = store();
 
@@ -150,6 +164,43 @@ export function statePlugin<S = TestKitReduxState>(
                 return wrapped;
             };
 
+            const renderWithStableStore = (component: ReactElement) => {
+                const storeInstance = getPersistentStore();
+
+                const globalWithWindow = globalThis as unknown as {
+                    window?: Record<string, unknown>;
+                };
+                if (globalWithWindow.window) {
+                    (globalWithWindow.window as Record<string, unknown>).store =
+                        storeInstance as unknown as Record<string, unknown>;
+                }
+
+                let wrapped: ReactElement = React.createElement(
+                    Provider as unknown as ComponentType<{ store: unknown }>,
+                    { store: storeInstance as unknown },
+                    component
+                );
+
+                extraProviders.forEach((ProviderComponent) => {
+                    wrapped = React.createElement(
+                        ProviderComponent as ComponentType<{
+                            children?: ReactNode;
+                        }>,
+                        null,
+                        wrapped
+                    );
+                });
+
+                return wrapped;
+            };
+
+            const rerenderWithStableStore = (
+                rerender: (ui: ReactElement) => void,
+                component: ReactElement
+            ) => {
+                rerender(renderWithStableStore(component));
+            };
+
             return {
                 store,
                 use,
@@ -160,6 +211,13 @@ export function statePlugin<S = TestKitReduxState>(
                 renderWithState: renderWithState as unknown as (
                     component: ReactElement
                 ) => ReactElement,
+                renderWithStableStore: renderWithStableStore as unknown as (
+                    component: ReactElement
+                ) => ReactElement,
+                rerenderWithStableStore: rerenderWithStableStore as unknown as (
+                    rerender: (ui: ReactElement) => void,
+                    component: ReactElement
+                ) => void,
                 stubState: stubState as unknown as {
                     <P extends string>(path: P, value: unknown): void;
                     (patch: DeepPartial<S>): void;
