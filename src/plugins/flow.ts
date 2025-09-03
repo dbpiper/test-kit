@@ -1,5 +1,4 @@
 import { type UserEvent } from '@testing-library/user-event';
-import { act as rtlAct } from '@testing-library/react';
 
 import { definePlugin } from '../helpers/definePlugin';
 
@@ -13,6 +12,15 @@ export type FlowHelpers = {
 export const flowPlugin = definePlugin<'flow', FlowHelpers>('flow', {
     key: Symbol('flow'),
     setup(ctx) {
+        const resolveRtl = () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-underscore-dangle
+            const maybe = (globalThis as any).__RTL__;
+            if (maybe) {
+                return maybe as typeof import('@testing-library/react');
+            }
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            return require('@testing-library/react') as typeof import('@testing-library/react');
+        };
         const isWebUser = (candidate: unknown): candidate is UserEvent =>
             !!candidate &&
             typeof (candidate as { click?: unknown }).click === 'function' &&
@@ -21,7 +29,7 @@ export const flowPlugin = definePlugin<'flow', FlowHelpers>('flow', {
         return {
             act: async (fn: (user: UserEvent) => Promise<void>) => {
                 // Wrap the interaction in React Testing Library's act
-                await rtlAct(async () => {
+                await resolveRtl().act(async () => {
                     const candidateUser = ctx.user;
                     if (!isWebUser(candidateUser)) {
                         throw new Error(
@@ -31,13 +39,13 @@ export const flowPlugin = definePlugin<'flow', FlowHelpers>('flow', {
                     await fn(candidateUser);
                 });
                 // Give component libs (e.g., MUI ripples) a microtask to settle
-                await rtlAct(async () => {
+                await resolveRtl().act(async () => {
                     await new Promise((resolve) => setTimeout(resolve, 0));
                 });
             },
             run: async () => {
                 // Backward compatibility: provide a small flush for older tests
-                await rtlAct(async () => {
+                await resolveRtl().act(async () => {
                     await new Promise((resolve) => setTimeout(resolve, 0));
                 });
             },
