@@ -7,10 +7,13 @@ export default defineConfig({
     dts: true,
     format: ['esm', 'cjs'],
     target: 'es2020',
+    treeshake: true,
     external: [
         // Web/testing
         'react',
         'react-dom',
+        // ensure subpath externals (e.g., react-dom/client)
+        /^react-dom\/.+$/,
         '@testing-library/react',
         '@testing-library/user-event',
         'react-redux',
@@ -78,5 +81,9 @@ export default defineConfig({
         /^@react-native-community\//,
         /^@react-native-firebase\//,
         /^react-native(-.*)?$/,
+        // testing-library subpaths just in case
+        /^@testing-library\/react\/.+$/,
+        /^@testing-library\/react-native\/.+$/,
+        /^@testing-library\/user-event\/.+$/,
     ],
 });

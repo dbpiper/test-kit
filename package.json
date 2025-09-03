@@ -1,6 +1,6 @@
 {
     "name": "@suerg/test-kit",
-    "version": "0.1.28",
+    "version": "0.1.29",
     "private": false,
     "type": "module",
     "react-native": "dist/index.native.cjs",
@@ -99,7 +99,7 @@
         "@testing-library/react-native": "^13.3.3",
         "@testing-library/user-event": "^14.6.1",
         "@types/jest": "^30.0.0",
-        "@types/react": "^19.1.9",
+        "@types/react": "19.1.0",
         "@typescript-eslint/eslint-plugin": "^8.38.0",
         "@typescript-eslint/parser": "^8.38.0",
         "axios": "^1.6.0",
@@ -119,15 +119,20 @@
         "jest-environment-jsdom": "^30.0.5",
         "nodemon": "^3.1.10",
         "prettier": "^3.6.2",
-        "react": "^19.1.1",
-        "react-dom": "^19.1.1",
+        "react": "19.1.0",
+        "react-dom": "19.1.0",
         "react-native": "^0.80.2",
         "react-redux": "^9.2.0",
-        "react-test-renderer": "^19.1.1",
+        "react-test-renderer": "19.1.0",
         "redux": "^5.0.1",
         "ts-jest": "^29.4.1",
         "tsdown": "^0.14.2",
         "typescript": "^5.9.2",
         "yalc": "^1.0.0-pre.53"
+    },
+    "overrides": {
+        "react": "19.1.0",
+        "react-dom": "19.1.0",
+        "react-test-renderer": "19.1.0"
     }
 }

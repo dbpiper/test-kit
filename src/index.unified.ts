@@ -1,3 +1,55 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable import/first */
+// Runtime-unified entry that chooses native vs web at require-time for CJS consumers like Jest.
+// Keep imports lazy via require() to avoid bundling both sides.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function load(moduleId: string): any {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires,
+    // @typescript-eslint/no-require-imports
+    return require(moduleId);
+}
+
+const isNative = (() => {
+    try {
+        // Prefer strong signals
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const rn = require('react-native');
+        if (rn && typeof rn?.Platform?.OS === 'string') {
+            return true;
+        }
+    } catch {
+        /* ignore */
+    }
+    try {
+        // Heuristic: RN test envs often expose navigator.product = 'ReactNative'
+        const product = String(
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            (globalThis as unknown as { navigator?: { product?: unknown } })
+                .navigator?.product ?? ''
+        ).toLowerCase();
+        if (product === 'reactnative') {
+            return true;
+        }
+    } catch {
+        /* ignore */
+    }
+    try {
+        // If RN Testing Library is resolvable, prefer native
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require.resolve('@testing-library/react-native');
+        return true;
+    } catch {
+        /* ignore */
+    }
+    return false;
+})();
+
+// Re-export from the chosen platform build
+const ns = isNative ? load('./index.native.cjs') : load('./index.cjs');
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+module.exports = ns;
+
 import { detectPlatform } from './runtime/detectTestPlatform';
 import { createKit as createWebKit } from './createKit';
 import { createKitNative as createNativeKit } from './createKitNative';
