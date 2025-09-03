@@ -359,6 +359,56 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 );
             }
 
+            function parseWantedPath(input: string): {
+                pathOnly: string;
+                query?: Record<string, string[]>;
+            } {
+                try {
+                    // Absolute URL
+                    if (/^https?:\/\//i.test(input)) {
+                        const urlObject = new URL(input);
+                        const queryMap: Record<string, string[]> = {};
+                        urlObject.searchParams.forEach((value, key) => {
+                            const lk = key.toLowerCase();
+                            (queryMap[lk] ||= []).push(value);
+                        });
+                        return {
+                            pathOnly: urlObject.pathname.replace(/\/$/, ''),
+                            query: Object.keys(queryMap).length
+                                ? queryMap
+                                : undefined,
+                        };
+                    }
+                } catch {
+                    /* ignore absolute parse */
+                }
+                // Relative path, possibly with query
+                const [pathPart, queryPart] = String(input).split('?');
+                const pathOnly = `/${pathPart.replace(/^\/*/, '').replace(/\/$/, '')}`;
+                if (!queryPart) {
+                    return { pathOnly };
+                }
+                const queryMap: Record<string, string[]> = {};
+                queryPart.split('&').forEach((pair) => {
+                    if (!pair) {
+                        return;
+                    }
+                    const [keyRaw, valueRaw] = pair.split('=');
+                    const keyLower = decodeURIComponent(
+                        keyRaw || ''
+                    ).toLowerCase();
+                    const valueDecoded = decodeURIComponent(valueRaw || '');
+                    if (!keyLower) {
+                        return;
+                    }
+                    (queryMap[keyLower] ||= []).push(valueDecoded);
+                });
+                return {
+                    pathOnly,
+                    query: Object.keys(queryMap).length ? queryMap : undefined,
+                };
+            }
+
             async function expectEventTimes(
                 eventName: 'call' | 'abort',
                 method: HttpMethod,
@@ -367,7 +417,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 timeoutMs = 1000
             ) {
                 const bucket = eventName === 'call' ? calls : abortedCalls;
-                const wantPath = path.startsWith('/') ? path : `/${path}`;
+                const want = parseWantedPath(path);
 
                 type RecordType =
                     | ApiCallRecord
@@ -376,8 +426,45 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                           path: string;
                           timestamp: number;
                       };
-                const matches = (record: RecordType) =>
-                    record.method === method && record.path === wantPath;
+                const matches = (record: RecordType) => {
+                    if (record.method !== method) {
+                        return false;
+                    }
+                    // Path match (strict, trailing slash already stripped in records)
+                    if (record.path !== want.pathOnly) {
+                        return false;
+                    }
+                    // Only ApiCallRecord carries query info
+                    if (
+                        eventName === 'call' &&
+                        'query' in record &&
+                        want.query
+                    ) {
+                        const actualQ: Record<string, string[]> = {};
+                        const src = (record as ApiCallRecord).query || {};
+                        Object.keys(src).forEach((key) => {
+                            const lk = key.toLowerCase();
+                            const valueAny = src[key];
+                            if (Array.isArray(valueAny)) {
+                                actualQ[lk] = valueAny.map(String);
+                            } else {
+                                actualQ[lk] = [String(valueAny)];
+                            }
+                        });
+                        for (const [key, values] of Object.entries(
+                            want.query
+                        )) {
+                            const got = actualQ[key] || [];
+                            // Ensure each expected value is present (order-insensitive)
+                            for (const val of values) {
+                                if (!got.includes(val)) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                    return true;
+                };
                 if (bucket.filter(matches).length >= times) {
                     return;
                 }
@@ -1931,3 +2018,5 @@ export const apiPlugin = (config: ApiConfig = {}) => {
         },
     });
 };
+
+export default apiPlugin;
