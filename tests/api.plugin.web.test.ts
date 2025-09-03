@@ -424,6 +424,44 @@ describe('apiPlugin (integration style)', () => {
         expect(res.data).toBe('hello-world');
     });
 
+    it('expectCalledTimes accepts full URL with query (order/case-insensitive keys)', async () => {
+        api.onGet('/api/full-assert', { ok: true }, 200);
+
+        const res = await fetch(
+            'http://localhost/api/full-assert?a=1&A=1&b=2&b=2'
+        );
+        await (res as any).json();
+
+        // Absolute full URL with mixed-case keys succeeds
+        await api.expectCalledTimes(
+            'GET',
+            'http://localhost/api/full-assert?A=1&b=2',
+            1
+        );
+
+        // Relative path with query in different order succeeds
+        await api.expectCalledTimes('GET', '/api/full-assert?b=2&a=1', 1);
+
+        // Missing param fails
+        await expect(
+            api.expectCalledTimes('GET', '/api/full-assert?missing=1', 1)
+        ).rejects.toThrow(/Timed out/i);
+    });
+
+    it('expectCalledTimes works with mocks declared with query while asserting with full URL', async () => {
+        // Mock declared including query values
+        api.onGet('/api/search?q=one&x=2', { ok: true }, 200);
+        const res = await fetch('http://localhost/api/search?x=2&q=one');
+        await (res as any).json();
+
+        // Assert using absolute URL and case-insensitive keys
+        await api.expectCalledTimes(
+            'GET',
+            'http://localhost/api/search?Q=one&X=2',
+            1
+        );
+    });
+
     // TODO: find a way to test this
     it.skip('patches axios-like candidates from require cache when axios lacks defaults', async () => {
         await new Promise<void>((resolve, reject) => {
