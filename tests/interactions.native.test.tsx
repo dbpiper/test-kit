@@ -198,7 +198,7 @@ function makeFakeRntl(real: typeof import('@testing-library/react-native')) {
     }) as unknown as typeof real.fireEvent;
 
     // Wrap to preserve behavior and allow call assertions
-    const fakeAct: typeof real.act = jest.fn(((cb: unknown) =>
+    const fakeAct: typeof real.act = jest.fn(((cb: () => unknown) =>
         real.act(cb)) as typeof real.act);
 
     return Object.defineProperties(

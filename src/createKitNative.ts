@@ -22,7 +22,17 @@ export function createKitNative(
         // eslint-disable-next-line no-underscore-dangle, @typescript-eslint/no-explicit-any
         (globalThis as any).__RNTL__ ??
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require('@testing-library/react-native');
+        // Prefer the pure entry to avoid auto-cleanup behaviors that can
+        // unmount synchronously during render with React 19
+        ((): unknown => {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                return require('@testing-library/react-native/pure');
+            } catch {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                return require('@testing-library/react-native');
+            }
+        })();
 
     const { screen, userEvent } = rntl as {
         screen: NativeScreen;
