@@ -112,7 +112,7 @@
         "eslint-plugin-promise": "^7.2.1",
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^5.2.0",
-        "headlamp": "file:.yalc/headlamp",
+        "headlamp": "^0.1.32",
         "jest": "^30.0.5",
         "jest-environment-jsdom": "^30.0.5",
         "nodemon": "^3.1.10",
