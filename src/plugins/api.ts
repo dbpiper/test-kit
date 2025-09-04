@@ -31,7 +31,7 @@ function buildUrlFromConfig(config: {
     }
 }
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 type Route = {
     method: HttpMethod;
@@ -61,6 +61,12 @@ export type ApiHelpers = {
     onGet(path: string, body: unknown, status?: number, repeat?: number): void;
     onPost(path: string, body: unknown, status?: number, repeat?: number): void;
     onPut(path: string, body: unknown, status?: number, repeat?: number): void;
+    onPatch(
+        path: string,
+        body: unknown,
+        status?: number,
+        repeat?: number
+    ): void;
     onDelete(
         path: string,
         body: unknown,
@@ -1844,6 +1850,12 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 status?: number,
                 repeat?: number
             ) => install('PUT', path, body, status ?? 200, repeat ?? 1);
+            const onPatch = (
+                path: string,
+                body: unknown,
+                status?: number,
+                repeat?: number
+            ) => install('PATCH', path, body, status ?? 200, repeat ?? 1);
             const onDelete = (
                 path: string,
                 body: unknown,
@@ -1932,6 +1944,7 @@ export const apiPlugin = (config: ApiConfig = {}) => {
                 onGet,
                 onPost,
                 onPut,
+                onPatch,
                 onDelete,
                 onGetHang: (path: string) => installHang('GET', path),
                 chaos,
