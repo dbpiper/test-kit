@@ -198,19 +198,22 @@ describe('apiPlugin (integration style)', () => {
         });
     });
 
-    it('covers getCalls with method-only and no-args, POST/PUT/DELETE matching, and clear() active branch', async () => {
-        // POST/PUT/DELETE with descriptive paths
+    it('covers getCalls and POST/PUT/PATCH/DELETE matching, and clear() active branch', async () => {
+        // POST/PUT/PATCH/DELETE with descriptive paths
         api.onPost('/api/widgets', { ok: 'created' }, 201);
         api.onPut('/api/widgets/1', { ok: 'updated' }, 200);
+        api.onPatch('/api/widgets/1', { ok: 'patched' }, 200);
         api.onDelete('/api/widgets/1', { ok: 'deleted' }, 200);
 
         await fetch('http://localhost/api/widgets', { method: 'POST' });
         await fetch('http://localhost/api/widgets/1', { method: 'PUT' });
+        await fetch('http://localhost/api/widgets/1', { method: 'PATCH' });
         await fetch('http://localhost/api/widgets/1', { method: 'DELETE' });
 
         // getCalls variations
         expect(api.getCalls('POST').length).toBeGreaterThanOrEqual(1);
-        expect(api.getCalls().length).toBeGreaterThanOrEqual(3);
+        expect(api.getCalls('PATCH').length).toBeGreaterThanOrEqual(1);
+        expect(api.getCalls().length).toBeGreaterThanOrEqual(4);
         expect(api.getCalls('POST', '/api/widgets').length).toBe(1);
 
         // Create active request then clear to exercise branch
