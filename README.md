@@ -235,7 +235,7 @@ await act(async () => {
 
 Available as part of defaults (web and native):
 
-- onGet/onPost/onPut/onDelete(path, body, status = 200, repeat = 1)
+- onGet/onPost/onPut/onPatch/onDelete(path, body, status = 200, repeat = 1)
 - onGetHang(path)
 - chaos: rateLimit(path), serverError(path), timeout(path), networkError(path)
 - getCalls(method?, path?) -> ApiCallRecord[]
@@ -262,6 +262,14 @@ kit.api.onGet('/api/users', { users: [] }, 200);
 await fetch('/api/users');
 await kit.api.expectCalledTimes('GET', '/api/users', 1);
 await kit.api.expectNoPending();
+```
+
+PATCH example:
+
+```ts
+kit.api.onPatch('/api/items/1', { ok: true }, 200);
+await fetch('/api/items/1', { method: 'PATCH' });
+await kit.api.expectCalledTimes('PATCH', '/api/items/1', 1);
 ```
 
 ## State Plugin (Redux)
