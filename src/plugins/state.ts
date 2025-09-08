@@ -16,6 +16,7 @@ type DeepPartial<T> = T extends object
 
 export type StateHelpers<S> = {
     store: () => MinimalStore<S>;
+    getStore: () => MinimalStore<S>;
     use: (preset: (state: S) => Partial<S> | void) => void;
     withPatch: (patch: Partial<S>) => void;
     withProviders: (
@@ -203,6 +204,8 @@ export function statePlugin<S = TestKitReduxState>(
 
             return {
                 store,
+                getStore:
+                    getPersistentStore as unknown as () => MinimalStore<S>,
                 use,
                 withPatch,
                 withProviders: withProviders as unknown as (
